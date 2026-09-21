@@ -1,0 +1,42 @@
+[
+    {
+        "id": 1,
+        "name": "Изучение веб-разработки на Python",
+        "category": "Программирование",
+        "created_date": "2026-09-08",
+        "is_active": true,
+        "weekly_goal": 8.0
+    },
+    {
+        "id": 2,
+        "name": "Бег",
+        "category": "Спорт",
+        "created_date": "2026-09-08",
+        "is_active": true,
+        "weekly_goal": 4.0
+    },
+    {
+        "id": 3,
+        "name": "Английский язык",
+        "category": "Языки",
+        "created_date": "2026-09-09",
+        "is_active": true,
+        "weekly_goal": 5.0
+    },
+    {
+        "id": 4,
+        "name": "Гитара",
+        "category": "Творчество",
+        "created_date": "2026-09-10",
+        "is_active": true,
+        "weekly_goal": 3.0
+    },
+    {
+        "id": 5,
+        "name": "Чтение научной фантастики",
+        "category": "Чтение",
+        "created_date": "2026-09-10",
+        "is_active": false,
+        "weekly_goal": 2.0
+    }
+]
