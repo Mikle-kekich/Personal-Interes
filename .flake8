@@ -1,2 +1,5 @@
 [flake8]
 extend-exclude = .venv
+per-file-ignores =
+    manage.py: E501
+    interest_tracker/settings.py: E501
