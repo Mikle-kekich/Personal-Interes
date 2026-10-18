@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}
+Интересы – Interest Tracker
+{% endblock %}
+
+{% block content %}
+<h1>Интересы</h1>
+<p>
+  Всего интересов: {{ interests|length }}
+</p>
+{% for interest in interests %}
+  {% include "interests/includes/interest_card.html" %}
+{% empty %}
+  <p>Интересы не найдены.</p>
+{% endfor %}
+{% endblock %}

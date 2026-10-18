@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}
+Главная – Interest Tracker
+{% endblock %}
+
+{% block content %}
+<h1 class="display-4">Interest Tracker</h1>
+<p class="lead">
+  Система управления личными интересами.
+</p>
+<p>
+  Подписывайтесь на интересы, отмечайте занятия
+  и следите за выполнением недельного плана.
+</p>
+<p>Основные разделы:</p>
+<a href="{% url 'interests:list' %}" class="btn btn-primary me-2">
+  Интересы
+</a>
+<a href="{% url 'subscriptions:list' %}" class="btn btn-secondary">
+  Подписки
+</a>
+{% endblock %}

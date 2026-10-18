@@ -1,6 +1,7 @@
-"""Главная страница и общие функции веб-слоя: каркас страницы и данные."""
+"""Главная страница, страница ошибки 404 и загрузка данных для веб-слоя."""
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
+from django.shortcuts import render
 
 from storage import (
     load_categories,
@@ -32,38 +33,13 @@ def load_data() -> dict:
     }
 
 
-def page(title: str, content: str) -> str:
-    """Собрать HTML-страницу: кодировка, заголовок, Bootstrap, навигация."""
-    bootstrap = (
-        "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3"
-        "/dist/css/bootstrap.min.css"
-    )
-    return f"""<!DOCTYPE html>
-<html lang="ru">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{title}</title>
-<link rel="stylesheet" href="{bootstrap}">
-</head>
-<body>
-<nav class="nav">
-<a class="nav-link" href="/">Главная</a>
-<a class="nav-link" href="/interests/">Интересы</a>
-<a class="nav-link" href="/subscriptions/">Подписки</a>
-</nav>
-<main class="container">{content}</main>
-</body>
-</html>"""
-
-
 def index(request: HttpRequest) -> HttpResponse:
     """Главная страница /: описание приложения и кнопки-ссылки."""
-    content = """
-<h1 class="display-4">Interest Tracker</h1>
-<p class="lead">Система управления личными интересами.</p>
-<p>Основные разделы:</p>
-<a href="/interests/" class="btn btn-primary me-2">Интересы</a>
-<a href="/subscriptions/" class="btn btn-secondary">Подписки</a>
-"""
-    return HttpResponse(page("Interest Tracker", content))
+    return render(request, "homepage/index.html")
+
+
+def page_not_found(
+    request: HttpRequest, exception: Exception
+) -> HttpResponse:
+    """Обработчик ошибки 404 (handler404): адреса нет среди маршрутов."""
+    return render(request, "homepage/page_not_found.html", status=404)

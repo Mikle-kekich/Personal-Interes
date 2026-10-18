@@ -1,0 +1,9 @@
+{% if subscription.is_cancelled %}
+<span class="badge bg-secondary subscription-status subscription-status-cancelled">
+  {{ subscription.status }}
+</span>
+{% else %}
+<span class="badge bg-success subscription-status subscription-status-active">
+  {{ subscription.status }}
+</span>
+{% endif %}

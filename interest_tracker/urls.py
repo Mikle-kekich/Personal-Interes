@@ -23,3 +23,5 @@ urlpatterns = [
     path('interests/', include('interests.urls')),
     path('subscriptions/', include('subscriptions.urls')),
 ]
+
+handler404 = 'homepage.views.page_not_found'

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}
+Подписки – Interest Tracker
+{% endblock %}
+
+{% block content %}
+<h1>Подписки</h1>
+<p>
+  Всего подписок: {{ subscriptions|length }}
+</p>
+<ul class="list-group">
+  {% for subscription in subscriptions %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <a href="{% url 'subscriptions:detail' subscription.id %}">
+      №{{ subscription.id }}: {{ subscription.user.name }}
+      – {{ subscription.interest.name }},
+      с {{ subscription.start_date }}
+    </a>
+    {% include "subscriptions/includes/subscription_status.html" %}
+  </li>
+  {% empty %}
+  <li class="list-group-item">Подписки не найдены.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

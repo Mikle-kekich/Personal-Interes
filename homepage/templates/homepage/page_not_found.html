@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}
+Страница не найдена – Interest Tracker
+{% endblock %}
+
+{% block content %}
+<h1 class="text-danger">Страница не найдена</h1>
+<p>Такого адреса в приложении нет.</p>
+<a href="{% url 'homepage:index' %}" class="btn btn-outline-secondary">
+  ← на главную
+</a>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if interest %}
+{{ interest.name }} – Interest Tracker
+{% else %}
+Интерес не найден – Interest Tracker
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if interest %}
+<div class="card">
+  <div class="card-body">
+    <h1 class="card-title h4">
+      {{ interest.name }}
+    </h1>
+    <p class="card-text">
+      <strong>ID:</strong> {{ interest.id }}
+    </p>
+    <p class="card-text">
+      <strong>Категория:</strong> {{ interest.category.name }}
+    </p>
+    <p class="card-text">
+      <strong>План на неделю:</strong>
+      {{ interest.weekly_goal|floatformat:1 }} ч
+    </p>
+    <p class="card-text">
+      <strong>Статус:</strong>
+      {% if interest.is_active %}
+      <span class="badge bg-success">активен</span>
+      {% else %}
+      <span class="badge bg-secondary">в архиве</span>
+      {% endif %}
+    </p>
+    <p class="card-text">
+      <strong>Подписка пользователей:</strong>
+    </p>
+    <ul class="list-group">
+      {% for item in users_info %}
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        {{ item.user.name }}
+        {% if item.allowed %}
+        <span class="badge bg-success ms-2">можно подписаться</span>
+        {% else %}
+        <span class="badge bg-danger ms-2">подписка невозможна</span>
+        {% endif %}
+      </li>
+      {% empty %}
+      <li class="list-group-item">Пользователи не найдены.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% else %}
+<h1 class="text-danger">Интерес не найден</h1>
+<p>
+  Интерес с указанным идентификатором отсутствует.
+</p>
+{% endif %}
+<a
+  href="{% url 'interests:list' %}"
+  class="btn btn-outline-secondary mt-3"
+>
+  ← к списку интересов
+</a>
+{% endblock %}

@@ -1,6 +1,6 @@
 # Система управления личными интересами (Interest Tracker)
 
-Приложение, в котором пользователи подписываются на интересы (хобби) из разных категорий, отмечают занятия по подписке и следят за выполнением недельного плана. Консольная версия (ПР3) дополнена веб-интерфейсом на Django (ПР5): интересы и подписки можно просматривать в браузере.
+Приложение, в котором пользователи подписываются на интересы (хобби) из разных категорий, отмечают занятия по подписке и следят за выполнением недельного плана. Консольная версия (ПР3) дополнена веб-интерфейсом на Django (ПР5): интересы и подписки можно просматривать в браузере. Страницы веб-интерфейса формируются шаблонами Django (ПР6).
 
 ## Назначение
 Приложение предназначено для структурирования, учёта и отслеживания личных интересов, хобби и направлений саморазвития пользователя. Система помогает планировать время на увлечения, ставить цели по обучению или практике, а также контролировать регулярность занятий.
@@ -8,8 +8,10 @@
 ## Используемые технологии
 - Python 3;
 - Django 5.2 — веб-фреймворк;
+- Django Template Language — шаблоны веб-страниц;
 - HTML — разметка веб-страниц;
-- CSS и Bootstrap 5.3 (подключается через CDN) — оформление страниц;
+- CSS и Bootstrap 5.3 (подключается через CDN) — оформление страниц, собственный CSS проекта;
+- JavaScript — небольшое клиентское поведение (год в подвале);
 - JSON — хранение данных;
 - pytest — автоматизированные тесты;
 - flake8 — проверка качества кода.
@@ -110,21 +112,98 @@ Django-проект `interest_tracker` создан в корне существ
 - `/subscriptions/` — список подписок: объекты `Subscription` из `data/subscriptions.json`, пользователь, интерес, дата, статус (view-функция `subscriptions()`);
 - `/subscriptions/<int:subscription_id>/` — страница подписки: связанные пользователь, интерес и категория, дата, всего часов, статус (view-функция `subscription_detail()`).
 
-Если интерес или подписка с указанным номером не найдены, страница возвращает сообщение и код статуса 404. Ссылки навигации («Главная», «Интересы», «Подписки») есть на каждой странице, из списков можно перейти к карточкам, из карточки подписки — к карточке интереса.
+Если интерес или подписка с указанным номером не найдены, страница возвращает сообщение и код статуса 404; адрес, которого нет среди маршрутов, обрабатывает `handler404` (см. ниже). Ссылки навигации («Главная», «Интересы», «Подписки») есть на каждой странице, из списков можно перейти к карточкам, из карточки подписки — к карточке интереса.
 
 Как запрос доходит до страницы (на примере `/interests/1/`):
 ```text
 браузер: GET /interests/1/
 → interest_tracker/urls.py: path("interests/", include("interests.urls"))
-→ interests/urls.py: path("<int:interest_id>/", views.interest_detail)
-→ interest_detail(request, interest_id=1): загрузка данных, find_interest_by_id(), can_subscribe()
-→ HttpResponse: HTML-страница (функция page(), Bootstrap) и код статуса 200
+→ interests/urls.py: path("<int:interest_id>/", views.interest_detail, name="detail")
+→ interest_detail(request, interest_id=1): загрузка данных, find_interest_by_id(), can_subscribe(), подготовка контекста
+→ render(): шаблон interests/interest_detail.html, который наследует templates/base.html
+→ HttpResponse: HTML-страница и код статуса 200
 ```
 
-HTML, CSS и Bootstrap: каждая страница собирается функцией `page()` (`homepage/views.py`): кодировка UTF-8, заголовок вкладки, мета-тег `viewport` для адаптивности, подключение Bootstrap 5.3 по CDN, навигация и содержимое в `<main class="container">`. Используются классы Bootstrap `container`, `nav`, `list-group`, `card`, `badge`, `btn`. Формирование HTML в Python-строках — временное решение ПР5: в следующих работах разметка переедет в шаблоны Django (`templates/`), а функция `page()` будет заменена базовым шаблоном.
+HTML веб-страниц находится в шаблонах Django (см. раздел «Шаблоны Django (ПР6)»); view-функции HTML не формируют. Функция `page()` из ПР5 удалена.
+
+### Обработка ошибки 404, DEBUG и ALLOWED_HOSTS
+В `interest_tracker/settings.py` заданы `DEBUG = False` и `ALLOWED_HOSTS = ['127.0.0.1', 'localhost']`, в `interest_tracker/urls.py` — `handler404 = 'homepage.views.page_not_found'`.
+- Адрес не подошёл ни под один маршрут (`/abc/`, `/interests/abc/`): Django получает `Resolver404` и вызывает обработчик `handler404` — функцию `page_not_found(request, exception)` (`homepage/views.py`). Она отображает шаблон `homepage/page_not_found.html` («Страница не найдена») с кодом 404. Без `handler404` Django использовал бы стандартный `django.views.defaults.page_not_found` с простой страницей «Not Found».
+- Маршрут найден, но объекта нет (`/interests/999/`): исключения нет, шаблон интереса (или подписки) показывает сообщение «Интерес не найден» («Подписка не найдена»), а view передаёт в `render()` код `status=404`; `handler404` не вызывается.
+- Пользовательский `handler404` работает только при `DEBUG = False`; при `DEBUG = True` Django показывает свою техническую страницу 404 со списком маршрутов.
+- При `DEBUG = False` Django требует непустой `ALLOWED_HOSTS`: без него `runserver` не запускается (`You must set settings.ALLOWED_HOSTS if DEBUG is False`), а запросы с чужим именем хоста получают ответ 400. В списке — имена, по которым открывают сайт: `http://127.0.0.1:8000/` и `http://localhost:8000/`.
+- При `DEBUG = False` сервер разработки не раздаёт статические файлы. Поэтому для просмотра сайта с собственным CSS, JavaScript и логотипом (ПР6) сервер запускают с флагом `--insecure`: `python manage.py runserver --insecure`. Для отладки (подробные страницы ошибок с трассировкой) можно временно поставить `DEBUG = True`: тогда статика раздаётся и без флага, но пользовательский `handler404` не работает.
+
+## Шаблоны Django (ПР6)
+В ПР6 слой представления веб-части перестроен: HTML перенесён из Python-строк в шаблоны Django. Источник данных не изменился — JSON-файлы и объекты ПР3; Django ORM и формы пока не используются.
+
+| ПР5 | ПР6 |
+|---|---|
+| HTML-страница собирается в Python-строке функцией `page()` | HTML лежит в файлах `.html` каталогов `templates/` |
+| view возвращает `HttpResponse(page(...))` | view готовит контекст и вызывает `render(request, "шаблон.html", context)` |
+| общий каркас — функция `page()` | общий каркас — базовый шаблон `templates/base.html` |
+| повторяющийся HTML копируется в f-строках | повторяющиеся фрагменты вынесены через `{% include %}` |
+| ссылки записаны адресами: `href="/interests/"` | ссылки строятся тегом `{% url 'interests:list' %}` |
+| оформление — Bootstrap по CDN | Bootstrap + собственные `style.css`, `main.js`, `logo.png` |
+
+### Базовый шаблон и наследование
+`templates/base.html` содержит общую структуру страницы: `<!DOCTYPE html>`, кодировку и `viewport`, подключение Bootstrap и собственного CSS, шапку с логотипом и навигацией, контейнер `<main>`, подвал и подключение `main.js`. Дочерние шаблоны начинаются с `{% extends "base.html" %}` и переопределяют два блока:
+```text
+{% block title %}...{% endblock %}    — заголовок вкладки браузера
+{% block content %}...{% endblock %}  — содержимое страницы
+```
+Каталог шаблонов уровня проекта указан в `settings.py`: `TEMPLATES[0]["DIRS"] = [BASE_DIR / "templates"]`; шаблоны приложений Django находит сам (`APP_DIRS = True`).
+
+### Включаемые шаблоны
+- `templates/includes/navigation.html` — навигация, подключается в `base.html`;
+- `interests/includes/interest_card.html` — карточка одного интереса; `interest_list.html` подключает её в цикле `{% for interest in interests %}`, поэтому внутри карточки доступна переменная `interest`;
+- `subscriptions/includes/subscription_status.html` — статус подписки (активна или отменена); используется и в списке подписок, и на странице подписки.
+
+Подключение: `{% include "interests/includes/interest_card.html" %}`.
+
+### Контекст, циклы и условия
+View передаёт данные словарём. Например, `interests()`:
+```python
+context = {"interests": load_data()["interests"]}
+return render(request, "interests/interest_list.html", context)
+```
+В шаблоне имена ключей контекста становятся переменными: `{% for interest in interests %}`, `{{ interest.name }}`, `{{ interest.category.name }}`. Для пустой коллекции используется `{% empty %}` («Интересы не найдены.», «Подписки не найдены.»). Условия `{% if %}` выбирают вид страницы и значков: интерес активен или в архиве, подписка активна или отменена (`subscription.is_cancelled`), можно или нельзя подписаться (`item.allowed`), найден ли объект. Проверка `can_subscribe()` вызывается во view (шаблон не вычисляет правила), результат передаётся в контексте списком `users_info`.
+
+Если объект не найден, view передаёт `None`, шаблон показывает сообщение через `{% if interest %} ... {% else %} ... {% endif %}`, а код 404 задаётся параметром `status=404 if interest is None else 200` вызова `render()`.
+
+### Фильтры шаблонов
+- `{{ interests|length }}` и `{{ subscriptions|length }}` — количество элементов («Всего интересов: 6»);
+- `{{ interest.name|default:"Без названия" }}` — значение по умолчанию для пустого названия;
+- `{{ interest.weekly_goal|floatformat:1 }}` — число с одним знаком после запятой («8,0 ч»; запятая — из настройки `LANGUAGE_CODE = 'ru-RU'`).
+
+Фильтры используются только для представления данных, бизнес-логика остаётся в Python. Даты подписок хранятся в JSON и в объектах строкой `ГГГГ-ММ-ДД` и выводятся без преобразования (фильтр `date` работает только с объектами даты; они появятся при переходе на Django ORM). В консольной версии дата по-прежнему показывается как `ДД.ММ.ГГГГ`.
+
+### Именованные URL и пространства имён
+В `urls.py` каждого приложения задан `app_name` и имена маршрутов; ссылки в шаблонах строятся тегом `{% url %}`, адреса в HTML не записаны:
+
+| Имя маршрута | Адрес | Пример в шаблоне |
+|---|---|---|
+| `homepage:index` | `/` | `{% url 'homepage:index' %}` |
+| `interests:list` | `/interests/` | `{% url 'interests:list' %}` |
+| `interests:detail` | `/interests/<int:interest_id>/` | `{% url 'interests:detail' interest.id %}` |
+| `subscriptions:list` | `/subscriptions/` | `{% url 'subscriptions:list' %}` |
+| `subscriptions:detail` | `/subscriptions/<int:subscription_id>/` | `{% url 'subscriptions:detail' subscription.id %}` |
+
+Если изменить адрес маршрута в `urls.py`, ссылки в шаблонах обновятся сами; если изменить `app_name` или `name`, нужно согласованно поменять и вызовы `{% url %}`.
+
+### Статические файлы
+Собственные статические файлы проекта находятся в `homepage/static/homepage/`:
+
+| Файл | Назначение | Где используется |
+|---|---|---|
+| `css/style.css` | оформление шапки, логотипа, карточки интереса, статуса подписки | `base.html`, `interest_card.html`, `subscription_status.html` |
+| `js/main.js` | подставляет текущий год в подвал страницы | `base.html` |
+| `img/logo.png` | логотип в шапке | `base.html` |
+
+В шаблонах подключается `{% load static %}` и используется `{% static 'homepage/css/style.css' %}`. Проверить поиск файла можно командой `python manage.py findstatic homepage/img/logo.png`.
 
 ## Основные операции
-### Используется в веб-интерфейсе (ПР5)
+### Используется в веб-интерфейсе (ПР5, ПР6)
 - просмотр списка интересов;
 - просмотр страницы интереса и проверка правил подписки для каждого пользователя;
 - просмотр списка подписок;
@@ -209,12 +288,28 @@ personal_interesting/
 │   ├── urls.py
 │   ├── asgi.py
 │   └── wsgi.py
+├── templates/
+│   ├── base.html
+│   └── includes/
+│       └── navigation.html
 ├── homepage/
 │   ├── __init__.py
 │   ├── admin.py
 │   ├── apps.py
 │   ├── migrations/
 │   ├── models.py
+│   ├── static/
+│   │   └── homepage/
+│   │       ├── css/
+│   │       │   └── style.css
+│   │       ├── img/
+│   │       │   └── logo.png
+│   │       └── js/
+│   │           └── main.js
+│   ├── templates/
+│   │   └── homepage/
+│   │       ├── index.html
+│   │       └── page_not_found.html
 │   ├── tests.py
 │   ├── urls.py
 │   └── views.py
@@ -224,6 +319,12 @@ personal_interesting/
 │   ├── apps.py
 │   ├── migrations/
 │   ├── models.py
+│   ├── templates/
+│   │   └── interests/
+│   │       ├── includes/
+│   │       │   └── interest_card.html
+│   │       ├── interest_detail.html
+│   │       └── interest_list.html
 │   ├── tests.py
 │   ├── urls.py
 │   └── views.py
@@ -233,6 +334,12 @@ personal_interesting/
 │   ├── apps.py
 │   ├── migrations/
 │   ├── models.py
+│   ├── templates/
+│   │   └── subscriptions/
+│   │       ├── includes/
+│   │       │   └── subscription_status.html
+│   │       ├── subscription_detail.html
+│   │       └── subscription_list.html
 │   ├── tests.py
 │   ├── urls.py
 │   └── views.py
@@ -258,10 +365,11 @@ personal_interesting/
 ## Назначение модулей
 - `main.py` — консольная версия приложения (сохранена с ПР3): меню, ввод данных и пользовательские сценарии (подписка, отметка занятия, прогресс, добавление интереса). Загружает и сохраняет данные через `storage.py` и не хранит данные в словарях;
 - `manage.py` — запуск команд управления Django-проектом (`runserver`, `migrate`, `check`);
-- `interest_tracker/` — пакет настроек Django-проекта: `settings.py` — настройки (в том числе список приложений `INSTALLED_APPS`, язык и часовой пояс), `urls.py` — маршрутизация верхнего уровня, `asgi.py` и `wsgi.py` — точки входа для серверов;
-- `homepage/` — Django-приложение главной страницы: `views.py` — функция `page()` (общий HTML-каркас), `load_data()` (загрузка данных) и view-функция `index()`; `urls.py` — маршрут главной страницы. Каркас размещён здесь, потому что главная страница задаёт общий вид остальных страниц, а остальные приложения импортируют `page()` и `load_data()`;
-- `interests/` — Django-приложение интересов: `views.py` — view-функции `interests()` и `interest_detail()`, `urls.py` — маршруты приложения, `models.py` — Django-модели (заполняется в следующих работах);
-- `subscriptions/` — Django-приложение подписок: `views.py` — view-функции `subscriptions()` и `subscription_detail()`, `urls.py` — маршруты приложения, `models.py` — Django-модели (заполняется в следующих работах);
+- `interest_tracker/` — пакет настроек Django-проекта: `settings.py` — настройки (в том числе список приложений `INSTALLED_APPS`, каталог шаблонов `TEMPLATES`, язык и часовой пояс, `DEBUG` и `ALLOWED_HOSTS`), `urls.py` — маршрутизация верхнего уровня и `handler404`, `asgi.py` и `wsgi.py` — точки входа для серверов;
+- `templates/` — шаблоны уровня проекта: `base.html` (базовый шаблон всех страниц) и `includes/navigation.html` (навигация);
+- `homepage/` — Django-приложение главной страницы: `views.py` — функция `load_data()` (загрузка данных, её используют остальные приложения), view-функция `index()` и обработчик ошибки 404 `page_not_found()`; `urls.py` — маршрут главной страницы; `templates/homepage/` — шаблоны главной страницы и страницы «Страница не найдена»; `static/homepage/` — собственные CSS, JavaScript и логотип проекта (общие для всех страниц);
+- `interests/` — Django-приложение интересов: `views.py` — view-функции `interests()` и `interest_detail()`, `urls.py` — маршруты приложения, `templates/interests/` — шаблоны списка, страницы и карточки интереса, `models.py` — Django-модели (заполняется в следующих работах);
+- `subscriptions/` — Django-приложение подписок: `views.py` — view-функции `subscriptions()` и `subscription_detail()`, `urls.py` — маршруты приложения, `templates/subscriptions/` — шаблоны списка, страницы и статуса подписки, `models.py` — Django-модели (заполняется в следующих работах);
 - `models/__init__.py` — позволяет импортировать классы из пакета: `from models import Category, Interest, Subscription, User`;
 - `models/categories.py` — класс `Category` и функции работы с категориями;
 - `models/interests.py` — класс `Interest` и функции работы с интересами (добавление, поиск, отбор по категории, сортировка);
@@ -273,7 +381,7 @@ personal_interesting/
 - `pytest.ini` и `.flake8` — настройки запуска тестов и линтера.
 
 ## Функции проекта
-Функции сущностей и хранилища используются и консольной, и веб-версией. Веб-слой (ПР5) вызывает функции загрузки данных, поиска по номеру и проверки правил подписки вместо консольных сценариев `main.py`.
+Функции сущностей и хранилища используются и консольной, и веб-версией. Веб-слой (ПР5, ПР6) вызывает функции загрузки данных, поиска по номеру и проверки правил подписки вместо консольных сценариев `main.py`.
 
 Категория (`models/categories.py`):
 
@@ -336,17 +444,17 @@ personal_interesting/
 | `load_users()`, `save_users()` | `data/users.json`: JSON ↔ объекты `User` |
 | `load_subscriptions()`, `save_subscriptions()` | `data/subscriptions.json`: JSON ↔ объекты `Subscription` |
 
-Веб-слой (ПР5):
+Веб-слой (ПР5, ПР6): каждая view-функция готовит контекст и вызывает `render()`, HTML формирует шаблон.
 
-| Имя | Файл | Назначение |
-|---|---|---|
-| `load_data()` | `homepage/views.py` | загрузка всех данных проекта через функции `storage.py` |
-| `page()` | `homepage/views.py` | единый каркас HTML-страницы: кодировка, заголовок, Bootstrap 5.3, навигация |
-| `index()` | `homepage/views.py` | главная страница `/` |
-| `interests()` | `interests/views.py` | страница `/interests/`: список интересов |
-| `interest_detail()` | `interests/views.py` | страница `/interests/<int:interest_id>/`; если интереса нет — код 404 |
-| `subscriptions()` | `subscriptions/views.py` | страница `/subscriptions/`: список подписок |
-| `subscription_detail()` | `subscriptions/views.py` | страница `/subscriptions/<int:subscription_id>/`; если подписки нет — код 404 |
+| Имя | Файл | Шаблон | Назначение |
+|---|---|---|---|
+| `load_data()` | `homepage/views.py` | — | загрузка всех данных проекта через функции `storage.py` |
+| `index()` | `homepage/views.py` | `homepage/index.html` | главная страница `/` |
+| `page_not_found()` | `homepage/views.py` | `homepage/page_not_found.html` | обработчик `handler404`: страница «Страница не найдена» с кодом 404 для адресов вне маршрутов |
+| `interests()` | `interests/views.py` | `interests/interest_list.html` | страница `/interests/`: список интересов |
+| `interest_detail()` | `interests/views.py` | `interests/interest_detail.html` | страница `/interests/<int:interest_id>/`; если интереса нет — код 404 |
+| `subscriptions()` | `subscriptions/views.py` | `subscriptions/subscription_list.html` | страница `/subscriptions/`: список подписок |
+| `subscription_detail()` | `subscriptions/views.py` | `subscriptions/subscription_detail.html` | страница `/subscriptions/<int:subscription_id>/`; если подписки нет — код 404 |
 
 ## Требования
 - Python 3.10 или новее;
@@ -365,9 +473,9 @@ pip install -r requirements.txt
 Веб-версия (Django):
 ```text
 python manage.py migrate
-python manage.py runserver
+python manage.py runserver --insecure
 ```
-Команда `migrate` выполняется один раз: она применяет встроенные миграции Django и создаёт файл `db.sqlite3`. После запуска сервера открыть в браузере адрес:
+Команда `migrate` выполняется один раз: она применяет встроенные миграции Django и создаёт файл `db.sqlite3`. Флаг `--insecure` нужен, потому что в настройках `DEBUG = False`, а при таком значении сервер разработки не раздаёт статические файлы (CSS, JavaScript, логотип); без флага страницы откроются без оформления проекта. После запуска сервера открыть в браузере адрес:
 ```text
 http://127.0.0.1:8000/
 ```
@@ -375,6 +483,11 @@ http://127.0.0.1:8000/
 Системная проверка проекта Django:
 ```text
 python manage.py check
+```
+
+Проверка, что Django находит статические файлы проекта:
+```text
+python manage.py findstatic homepage/img/logo.png
 ```
 
 Консольная версия (сохранена):
@@ -430,12 +543,16 @@ python main.py
 ```
 
 Что можно проверить в браузере на подготовленных данных:
+- `/` — главная: логотип, навигация, кнопки разделов, в подвале «© 2026 Interest Tracker» (год подставляет `main.js`);
+- `/interests/` — «Всего интересов: 6», карточки интересов, у каждой кнопка «Подробнее»;
 - `/interests/1/` — Иван Петров: «подписка невозможна» (уже подписан), Анна Смирнова: «можно подписаться»;
 - `/interests/2/` — «Бег»: оба пользователя могут подписаться, прежние подписки отменены;
 - `/interests/5/` — интерес в архиве: подписка невозможна для всех;
-- `/subscriptions/1/` — активная подписка, отмечено 13.0 ч;
+- `/subscriptions/` — «Всего подписок: 6», у каждой подписки значок статуса (активна или отменена);
+- `/subscriptions/1/` — активная подписка, отмечено 13,0 ч;
 - `/subscriptions/2/` — отменённая подписка, статус «отменена»;
-- `/interests/999/` и `/subscriptions/999/` — страница с сообщением «не найден» и код статуса 404.
+- `/interests/999/` и `/subscriptions/999/` — страница с сообщением «не найден» и код статуса 404 (формирует view);
+- `/abc/` или `/interests/abc/` — страница «Страница не найдена» и код статуса 404 (формирует `handler404`).
 
 ## Тестирование
 ```text
@@ -451,7 +568,7 @@ pytest -v
 - функции ПР1: расчёт прогресса и рекомендацию;
 - сохранение подписок в JSON и восстановление связей с объектами при загрузке.
 
-Веб-страницы на этом этапе проверяются вручную в браузере (адреса из раздела выше); автоматические тесты веб-слоя планируются в следующих работах.
+Веб-страницы на этом этапе проверяются вручную в браузере (адреса из раздела выше); автоматические тесты веб-слоя планируются в следующих работах. После перехода на шаблоны ПР6 все 17 тестов проходят без изменений: пакет `models/`, `storage.py` и `main.py` не менялись.
 
 ## Проверка качества кода
 ```text
@@ -466,21 +583,32 @@ flake8
 ```text
 git status
 ```
-Коммиты ПР5 начинаются с метки `PR5:`.
+Коммиты ПР5 начинаются с метки `PR5:`, коммиты ПР6 — с метки `PR6:` (например, `PR6: add Django templates and static files`).
 
 ## Текущее состояние и план развития
+Реализовано (ПР6):
+- шаблоны Django: базовый шаблон `base.html`, наследование `{% extends %}` и блоки `{% block %}`;
+- включаемые шаблоны `{% include %}`: навигация, карточка интереса, статус подписки;
+- передача данных из view в шаблон через контекст и `render()`; циклы `{% for %}` с `{% empty %}` и условия `{% if %}`;
+- именованные URL и пространства имён (`app_name`), ссылки через `{% url %}`;
+- фильтры шаблонов `length`, `default`, `floatformat`;
+- статические файлы: собственные CSS, JavaScript и логотип, подключение через `{% load static %}` и `{% static %}`;
+- функция `page()` удалена: HTML-код в view-функциях больше не формируется.
+
 Реализовано (ПР5):
 - Django-проект `interest_tracker` и три Django-приложения (`homepage`, `interests`, `subscriptions`);
 - маршрутизация URL двух уровней: корневой `urls.py` и `urls.py` каждого приложения;
 - view-функции и пять страниц: главная, список и страница интереса, список и страница подписки;
 - динамические URL с конвертером `<int:...>` и ответ с кодом 404 для несуществующего номера;
+- обработка ошибки 404 для несуществующих адресов: `handler404` и страница «Страница не найдена», заданы `DEBUG = False` и `ALLOWED_HOSTS`;
 - отображение данных предметной области из JSON через классы и функции ПР3;
 - проверка правил подписки (`can_subscribe()`) на странице интереса;
 - навигация между страницами и оформление Bootstrap 5.3.
 
+Пока не реализовано: данные хранятся в JSON, Django ORM и база данных для предметной области не используются, веб-формы отсутствуют.
+
 Планируется:
 - перенос сущностей `Category`, `Interest`, `User` и `Subscription` в Django ORM и подключение базы данных (PostgreSQL / SQLite);
-- переход на шаблоны Django (`templates/`) и отказ от функции `page()`;
 - формы и POST-запросы: оформление и отмена подписки, отметка занятий, добавление интересов и категорий, использование отложенной логики ПР3;
 - аутентификация, регистрация и разграничение прав доступа пользователей;
 - REST API для интеграции с мобильными или внешними клиентами;

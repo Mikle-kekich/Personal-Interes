@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if subscription %}
+Подписка №{{ subscription.id }} – Interest Tracker
+{% else %}
+Подписка не найдена – Interest Tracker
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if subscription %}
+<div class="card">
+  <div class="card-body">
+    <h1 class="card-title h4">
+      Подписка №{{ subscription.id }}
+    </h1>
+    <p class="card-text">
+      <strong>Пользователь:</strong> {{ subscription.user.name }}
+    </p>
+    <p class="card-text">
+      <strong>Интерес:</strong>
+      <a href="{% url 'interests:detail' subscription.interest.id %}">
+        {{ subscription.interest.name }}
+      </a>
+    </p>
+    <p class="card-text">
+      <strong>Категория:</strong> {{ subscription.interest.category.name }}
+    </p>
+    <p class="card-text">
+      <strong>Дата подписки:</strong> {{ subscription.start_date }}
+    </p>
+    <p class="card-text">
+      <strong>Отмечено часов:</strong>
+      {{ subscription.get_total_hours|floatformat:1 }} ч
+    </p>
+    <p class="card-text">
+      <strong>Статус:</strong>
+      {% include "subscriptions/includes/subscription_status.html" %}
+    </p>
+  </div>
+</div>
+{% else %}
+<h1 class="text-danger">Подписка не найдена</h1>
+<p>
+  Подписка с указанным идентификатором отсутствует.
+</p>
+{% endif %}
+<a
+  href="{% url 'subscriptions:list' %}"
+  class="btn btn-outline-secondary mt-3"
+>
+  ← к списку подписок
+</a>
+{% endblock %}

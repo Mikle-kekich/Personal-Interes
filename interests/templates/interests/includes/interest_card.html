@@ -1,0 +1,22 @@
+<article class="card interest-card mb-3">
+  <div class="card-body">
+    <h2 class="card-title h5">
+      {{ interest.name|default:"Без названия" }}
+    </h2>
+    <p class="card-text">
+      Категория: {{ interest.category.name }}<br>
+      План: {{ interest.weekly_goal|floatformat:1 }} ч в неделю
+    </p>
+    {% if interest.is_active %}
+    <span class="badge bg-success">активен</span>
+    {% else %}
+    <span class="badge bg-secondary">в архиве</span>
+    {% endif %}
+    <a
+      href="{% url 'interests:detail' interest.id %}"
+      class="btn btn-primary btn-sm ms-2"
+    >
+      Подробнее
+    </a>
+  </div>
+</article>
