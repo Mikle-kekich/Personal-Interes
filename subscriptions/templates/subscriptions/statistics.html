@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}
+Статистика – Interest Tracker
+{% endblock %}
+
+{% block content %}
+<h1>Статистика</h1>
+<p>
+  Отмечено занятий: {{ totals.activities_count }},
+  всего часов: {{ totals.total_hours|floatformat:1 }}
+</p>
+
+<h2 class="h4 mt-4">Активные подписки по интересам</h2>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Интерес</th>
+      <th>Активных подписок</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in subscriptions_by_interest %}
+    <tr>
+      <td>{{ item.interest_name }}</td>
+      <td>{{ item.subscriptions_count }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="2">Данные отсутствуют.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 class="h4 mt-4">Часы занятий по интересам</h2>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Интерес</th>
+      <th>Часов</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in hours_by_interest %}
+    <tr>
+      <td>{{ item.interest_name }}</td>
+      <td>{{ item.total_hours|floatformat:1 }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="2">Данные отсутствуют.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 class="h4 mt-4">Интересы по категориям</h2>
+<table class="table table-sm">
+  <thead>
+    <tr>
+      <th>Категория</th>
+      <th>Интересов</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in interests_by_category %}
+    <tr>
+      <td>{{ item.category_name }}</td>
+      <td>{{ item.interests_count }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="2">Данные отсутствуют.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 class="h4 mt-4">Категории, в которых больше одного интереса</h2>
+<ul class="list-group">
+  {% for item in popular_categories %}
+  <li class="list-group-item">
+    {{ item.category_name }}: {{ item.interests_count }}
+  </li>
+  {% empty %}
+  <li class="list-group-item">Таких категорий нет.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

@@ -4,7 +4,7 @@
       {{ interest.name|default:"Без названия" }}
     </h2>
     <p class="card-text">
-      Категория: {{ interest.category.name }}<br>
+      Категория: {{ interest.category_name }}<br>
       План: {{ interest.weekly_goal|floatformat:1 }} ч в неделю
     </p>
     {% if interest.is_active %}

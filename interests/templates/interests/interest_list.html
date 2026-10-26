@@ -9,6 +9,28 @@
 <p>
   Всего интересов: {{ interests|length }}
 </p>
+<p>
+  Категория:
+  <a
+    href="{% url 'interests:list' %}"
+    class="btn btn-sm {% if not category_id %}btn-primary{% else %}btn-outline-primary{% endif %}"
+  >
+    Все
+  </a>
+  {% for category in categories %}
+  <a
+    href="{% url 'interests:list' %}?category={{ category.id }}"
+    class="btn btn-sm {% if category_id == category.id|stringformat:'s' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+  >
+    {{ category.name }}
+  </a>
+  {% endfor %}
+</p>
+<p>
+  <a href="{% url 'interests:available' %}">
+    Найти интерес для подписки
+  </a>
+</p>
 {% for interest in interests %}
   {% include "interests/includes/interest_card.html" %}
 {% empty %}

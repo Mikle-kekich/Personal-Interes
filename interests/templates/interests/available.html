@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}
+Доступные интересы – Interest Tracker
+{% endblock %}
+
+{% block content %}
+<h1>Доступные интересы</h1>
+<p>
+  Выберите пользователя: будут показаны активные интересы,
+  на которые у него нет действующей подписки.
+</p>
+<form method="get" class="row g-2 mb-3">
+  <div class="col-auto">
+    <label for="user" class="visually-hidden">Пользователь</label>
+    <select id="user" name="user" class="form-select">
+      <option value="">– выберите пользователя –</option>
+      {% for person in users %}
+      <option
+        value="{{ person.id }}"
+        {% if user_id == person.id|stringformat:'s' %}selected{% endif %}
+      >
+        {{ person.name }}
+      </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Найти</button>
+  </div>
+</form>
+{% if user_id %}
+  {% if selected_user %}
+  <h2 class="h5">Пользователь: {{ selected_user.name }}</h2>
+  {% for interest in interests %}
+    {% include "interests/includes/interest_card.html" %}
+  {% empty %}
+    <p>Доступных интересов нет.</p>
+  {% endfor %}
+  {% else %}
+  <p class="text-danger">Пользователь не найден.</p>
+  {% endif %}
+{% endif %}
+<a
+  href="{% url 'interests:list' %}"
+  class="btn btn-outline-secondary mt-3"
+>
+  ← к списку интересов
+</a>
+{% endblock %}
