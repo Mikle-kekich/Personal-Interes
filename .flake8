@@ -3,3 +3,4 @@ extend-exclude = .venv
 per-file-ignores =
     manage.py: E501
     interest_tracker/settings.py: E501
+    */migrations/*.py: E501

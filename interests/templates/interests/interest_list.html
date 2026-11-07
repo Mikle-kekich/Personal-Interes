@@ -9,17 +9,39 @@
 <p>
   Всего интересов: {{ interests|length }}
 </p>
+<form method="get" class="row g-2 mb-3">
+  {% if category_id %}
+  <input type="hidden" name="category" value="{{ category_id }}">
+  {% endif %}
+  <div class="col-auto">
+    <label for="q" class="visually-hidden">Поиск</label>
+    <input
+      type="search"
+      id="q"
+      name="q"
+      class="form-control"
+      placeholder="Название или категория"
+      value="{{ q }}"
+    >
+  </div>
+  <div class="col-auto">
+    <button type="submit" class="btn btn-primary">Найти</button>
+    <a href="{% url 'interests:list' %}" class="btn btn-outline-secondary">
+      Сбросить
+    </a>
+  </div>
+</form>
 <p>
   Категория:
   <a
-    href="{% url 'interests:list' %}"
+    href="{% querystring category=None %}"
     class="btn btn-sm {% if not category_id %}btn-primary{% else %}btn-outline-primary{% endif %}"
   >
     Все
   </a>
   {% for category in categories %}
   <a
-    href="{% url 'interests:list' %}?category={{ category.id }}"
+    href="{% querystring category=category.id %}"
     class="btn btn-sm {% if category_id == category.id|stringformat:'s' %}btn-primary{% else %}btn-outline-primary{% endif %}"
   >
     {{ category.name }}

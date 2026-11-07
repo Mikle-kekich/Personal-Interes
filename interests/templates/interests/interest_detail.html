@@ -1,15 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}
-{% if interest %}
 {{ interest.name }} – Interest Tracker
-{% else %}
-Интерес не найден – Interest Tracker
-{% endif %}
 {% endblock %}
 
 {% block content %}
-{% if interest %}
 <div class="card">
   <div class="card-body">
     <h1 class="card-title h4">
@@ -52,12 +47,6 @@
     </ul>
   </div>
 </div>
-{% else %}
-<h1 class="text-danger">Интерес не найден</h1>
-<p>
-  Интерес с указанным идентификатором отсутствует.
-</p>
-{% endif %}
 <a
   href="{% url 'interests:list' %}"
   class="btn btn-outline-secondary mt-3"

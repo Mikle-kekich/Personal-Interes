@@ -1,66 +1,46 @@
 """Страницы интересов: список, поиск доступных интересов и карточка.
 
-Список и поиск получают данные из базы SQLite SQL-запросами (ПР7),
-карточка интереса по-прежнему работает с JSON-файлами (ПР5–ПР6).
+Данные берутся из базы через Django ORM (модели Category, Interest,
+User и Subscription), прямые SQL-запросы в представлениях не используются.
 """
-import sqlite3
+import re
 
+from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, render
 
-from db.database import get_connection
-from homepage.views import load_data
-from models.interests import find_interest_by_id
-from models.subscriptions import can_subscribe
+from interests.models import Category, Interest
+from subscriptions.models import Subscription
+from users.models import User
 
 
 def interests(request: HttpRequest) -> HttpResponse:
-    """Страница /interests/: список интересов из базы SQLite.
+    """Страница /interests/: список интересов.
 
-    Параметр ?category=<номер> оставляет интересы одной категории.
+    Параметр ?category=<номер> оставляет интересы одной категории,
+    параметр ?q=<текст> – интересы, в названии которых или в названии
+    категории есть этот текст.
     """
-    category_id = request.GET.get("category")
-    conn = get_connection()
-    conn.row_factory = sqlite3.Row
-    categories = conn.execute("""
-        SELECT
-            id,
-            name
-        FROM categories
-        ORDER BY name;
-    """).fetchall()
-    if category_id:
-        interests_data = conn.execute("""
-            SELECT
-                interests.id,
-                interests.name,
-                categories.name AS category_name,
-                interests.weekly_goal,
-                interests.is_active
-            FROM interests
-            JOIN categories
-                ON interests.category_id = categories.id
-            WHERE interests.category_id = ?
-            ORDER BY interests.name;
-        """, [category_id]).fetchall()
-    else:
-        interests_data = conn.execute("""
-            SELECT
-                interests.id,
-                interests.name,
-                categories.name AS category_name,
-                interests.weekly_goal,
-                interests.is_active
-            FROM interests
-            JOIN categories
-                ON interests.category_id = categories.id
-            ORDER BY interests.name;
-        """).fetchall()
-    conn.close()
+    category_id = request.GET.get("category", "").strip()
+    query = request.GET.get("q", "").strip()
+    interests_data = Interest.objects.select_related("category")
+    if category_id.isdecimal():
+        # category__id (а не category_id): слишком большое число
+        # даёт пустой результат, а не ошибку базы данных.
+        interests_data = interests_data.filter(category__id=int(category_id))
+    if query:
+        # SQLite сравнивает без учёта регистра только латиницу (LIKE),
+        # поэтому вместо icontains используется iregex: он работает
+        # и для кириллицы. re.escape превращает текст в обычную подстроку.
+        pattern = re.escape(query)
+        interests_data = interests_data.filter(
+            Q(name__iregex=pattern) | Q(category__name__iregex=pattern)
+        )
     context = {
-        "interests": interests_data,
-        "categories": categories,
+        "interests": interests_data.order_by("name"),
+        "categories": Category.objects.order_by("name"),
         "category_id": category_id,
+        "q": query,
     }
     return render(request, "interests/interest_list.html", context)
 
@@ -69,53 +49,30 @@ def available_interests(request: HttpRequest) -> HttpResponse:
     """Страница /interests/available/: интересы, доступные пользователю.
 
     Номер пользователя берётся из параметра ?user=<номер>. Если параметра
-    нет, запросы поиска не выполняются: страница показывает только форму.
+    нет, поиск не выполняется: страница показывает только форму.
     """
-    user_id = request.GET.get("user")
+    user_id = request.GET.get("user", "").strip()
     selected_user = None
     interests_data = []
-    conn = get_connection()
-    conn.row_factory = sqlite3.Row
-    users = conn.execute("""
-        SELECT
-            id,
-            name,
-            email
-        FROM users
-        ORDER BY name;
-    """).fetchall()
-    if user_id:
-        selected_user = conn.execute("""
-            SELECT
-                id,
-                name,
-                email
-            FROM users
-            WHERE id = ?;
-        """, [user_id]).fetchone()
+    if user_id.isdecimal():
+        try:
+            selected_user = User.objects.get(pk=int(user_id))
+        except User.DoesNotExist:
+            selected_user = None
     if selected_user is not None:
-        interests_data = conn.execute("""
-            SELECT
-                interests.id,
-                interests.name,
-                categories.name AS category_name,
-                interests.weekly_goal,
-                interests.is_active
-            FROM interests
-            JOIN categories
-                ON interests.category_id = categories.id
-            WHERE interests.is_active = 1
-                AND interests.id NOT IN (
-                    SELECT subscriptions.interest_id
-                    FROM subscriptions
-                    WHERE subscriptions.user_id = ?
-                        AND subscriptions.is_cancelled = 0
-                )
-            ORDER BY interests.name;
-        """, [selected_user["id"]]).fetchall()
-    conn.close()
+        # Номера интересов, на которые у пользователя есть активная подписка.
+        subscribed_ids = Subscription.objects.filter(
+            user=selected_user,
+            is_cancelled=False,
+        ).values_list("interest_id", flat=True)
+        interests_data = (
+            Interest.objects.select_related("category")
+            .filter(is_active=True)
+            .exclude(pk__in=subscribed_ids)
+            .order_by("name")
+        )
     context = {
-        "users": users,
+        "users": User.objects.order_by("name"),
         "user_id": user_id,
         "selected_user": selected_user,
         "interests": interests_data,
@@ -125,26 +82,20 @@ def available_interests(request: HttpRequest) -> HttpResponse:
 
 def interest_detail(request: HttpRequest, interest_id: int) -> HttpResponse:
     """Страница /interests/<id>/: карточка интереса, если его нет – 404."""
-    data = load_data()
-    interest = find_interest_by_id(data["interests"], interest_id)
+    interest = get_object_or_404(
+        Interest.objects.select_related("category"),
+        pk=interest_id,
+    )
     users_info = []
-    if interest is not None:
-        for user in data["users"]:
-            users_info.append(
-                {
-                    "user": user,
-                    "allowed": can_subscribe(
-                        data["subscriptions"], user, interest
-                    ),
-                }
-            )
+    for user in User.objects.order_by("name"):
+        users_info.append(
+            {
+                "user": user,
+                "allowed": interest.can_subscribe(user),
+            }
+        )
     context = {
         "interest": interest,
         "users_info": users_info,
     }
-    return render(
-        request,
-        "interests/interest_detail.html",
-        context,
-        status=404 if interest is None else 200,
-    )
+    return render(request, "interests/interest_detail.html", context)

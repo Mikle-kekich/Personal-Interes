@@ -1,6 +1,6 @@
 # Система управления личными интересами (Interest Tracker)
 
-Приложение, в котором пользователи подписываются на интересы (хобби) из разных категорий, отмечают занятия по подписке и следят за выполнением недельного плана. Консольная версия (ПР3) дополнена веб-интерфейсом на Django (ПР5): интересы и подписки можно просматривать в браузере. Страницы веб-интерфейса формируются шаблонами Django (ПР6). Данные списка интересов, активных подписок, поиска доступных интересов и статистики берутся из базы данных SQLite с помощью SQL-запросов (ПР7).
+Приложение, в котором пользователи подписываются на интересы (хобби) из разных категорий, отмечают занятия по подписке и следят за выполнением недельного плана. Консольная версия (ПР3) дополнена веб-интерфейсом на Django (ПР5): интересы и подписки можно просматривать в браузере. Страницы веб-интерфейса формируются шаблонами Django (ПР6). Данные хранятся в базе данных SQLite (ПР7); с ПР9 все страницы получают их через Django ORM: таблицы описаны моделями Django, структура базы управляется миграциями.
 
 ## Назначение
 Приложение предназначено для структурирования, учёта и отслеживания личных интересов, хобби и направлений саморазвития пользователя. Система помогает планировать время на увлечения, ставить цели по обучению или практике, а также контролировать регулярность занятий.
@@ -13,7 +13,7 @@
 - CSS и Bootstrap 5.3 (подключается через CDN) — оформление страниц, собственный CSS проекта;
 - JavaScript — небольшое клиентское поведение (год в подвале);
 - JSON — исходные данные проекта и хранилище консольной версии;
-- SQLite и язык SQL — реляционная база данных проекта, работа с ней через модуль `sqlite3` стандартной библиотеки Python (без Django ORM);
+- SQLite и язык SQL — реляционная база данных; в ПР7 работа с ней шла напрямую через модуль `sqlite3`, с ПР9 — через Django ORM (модели и миграции);
 - pytest — автоматизированные тесты;
 - flake8 — проверка качества кода.
 
@@ -31,7 +31,7 @@
 - недельная цель интереса — от 0 до 168 ч, неделя считается по календарю (понедельник — воскресенье).
 
 ## Основные сущности
-Пользователь, интерес, категория, подписка. Каждая сущность — отдельный класс в своём файле пакета `models/`.
+Пользователь, интерес, категория, подписка. Каждая сущность — отдельный класс в своём файле пакета `models/`. Те же сущности (и занятия по подписке) описаны моделями Django — см. раздел «Модели Django и ORM (ПР9)»; пакет `models/` остаётся основой консольной версии.
 
 ### `Category` — категория (`models/categories.py`)
 Сфера интересов, например «Спорт» или «Языки».
@@ -97,32 +97,33 @@ Subscription
 | запуск `python main.py` | запуск `python manage.py runserver` |
 | JSON — основное хранилище | JSON временно остаётся хранилищем, база данных появится позже |
 
-Django-проект `interest_tracker` создан в корне существующего репозитория, рядом с кодом ПР1–ПР3. Он состоит из трёх Django-приложений:
+Django-проект `interest_tracker` создан в корне существующего репозитория, рядом с кодом ПР1–ПР3. Он состоит из Django-приложений (с ПР9 их четыре, добавлено `users`):
 - `homepage` — главная страница и общий каркас всех страниц;
 - `interests` — страницы интересов (категория показывается в интересе как его атрибут);
-- `subscriptions` — страницы подписок.
+- `subscriptions` — страницы подписок;
+- `users` — модель пользователя (добавлено в ПР9).
 
-Отдельное приложение для пользователей не создаётся: у Django есть встроенная модель пользователя (`django.contrib.auth`), работа с пользователями (регистрация, вход, разграничение доступа) будет рассмотрена в следующих темах. Пользователи ПР3 (класс `User`) по-прежнему загружаются из `data/users.json` и показываются на страницах интересов и подписок.
+В ПР5 отдельного приложения для пользователей не было: пользователи ПР3 (класс `User`) загружались из `data/users.json`. В ПР9 добавлено приложение `users` с моделью `User` — пользователем предметной области. Это не встроенная модель аутентификации Django (`django.contrib.auth`): работа с ней (регистрация, вход, разграничение доступа) будет рассмотрена в следующих темах.
 
-Не следует путать пакет `models/` (классы предметной области ПР3) и файлы `models.py` Django-приложений: последние пока пустые, Django-модели появятся на следующих работах.
+Не следует путать пакет `models/` (классы предметной области ПР3: консольная версия и тесты) и файлы `models.py` Django-приложений (модели ORM, ПР9): это разные классы с одинаковыми именами `Category`, `Interest`, `User`, `Subscription`; веб-страницы используют только модели Django.
 
 ## Страницы веб-интерфейса
 - `/` — главная страница: описание приложения и кнопки-ссылки на разделы (view-функция `index()`);
-- `/interests/` — список интересов **из базы SQLite** (запрос с JOIN): категория, план на неделю, статус; ссылки-фильтры по категориям (`?category=<номер>`, запрос с параметром) (view-функция `interests()`);
-- `/interests/available/` — **поиск доступных интересов** (ПР7): по выбранному пользователю (`?user=<номер>`) показываются активные интересы, на которые у него нет действующей подписки (подзапрос `NOT IN`, параметр `?`) (view-функция `available_interests()`);
-- `/interests/<int:interest_id>/` — страница интереса: категория, план, статус и проверка `can_subscribe()` для каждого пользователя; данные из JSON (view-функция `interest_detail()`);
-- `/subscriptions/` — активные подписки **из базы SQLite** (JOIN трёх таблиц, `WHERE is_cancelled = 0`) и их количество (`COUNT`): пользователь, интерес, дата, статус (view-функция `subscriptions()`);
-- `/subscriptions/statistics/` — **статистика** (ПР7): занятия и часы, активные подписки и часы по интересам, интересы по категориям, категории с несколькими интересами (`COUNT`, `SUM`, `GROUP BY`, `HAVING`) (view-функция `statistics()`);
-- `/subscriptions/<int:subscription_id>/` — страница подписки: связанные пользователь, интерес и категория, дата, всего часов, статус; данные из JSON (view-функция `subscription_detail()`).
+- `/interests/` — список интересов **через Django ORM**: категория, план на неделю, статус; ссылки-фильтры по категориям (`?category=<номер>`) и поиск по названию интереса или категории (`?q=<текст>`) (view-функция `interests()`);
+- `/interests/available/` — **поиск доступных интересов**: по выбранному пользователю (`?user=<номер>`) показываются активные интересы, на которые у него нет действующей подписки (`filter()` и `exclude()`) (view-функция `available_interests()`);
+- `/interests/<int:interest_id>/` — страница интереса: категория, план, статус и проверка `Interest.can_subscribe()` для каждого пользователя (view-функция `interest_detail()`);
+- `/subscriptions/` — активные подписки **через Django ORM**: пользователь, интерес, дата, статус; фильтры по дате подписки (`?date=ГГГГ-ММ-ДД`), интересу (`?interest=<номер>`) и пользователю (`?user=<номер>`), сортировка (`?sort=date|interest|user`), постраничный вывод по 3 подписки (`?page=<номер>`) и количество подписок (view-функция `subscriptions()`);
+- `/subscriptions/statistics/` — **статистика**: занятия и часы, активные подписки и часы по интересам, интересы по категориям, категории с несколькими интересами (`aggregate()`, `annotate()`, `Count`, `Sum`) (view-функция `statistics()`);
+- `/subscriptions/<int:subscription_id>/` — страница подписки: связанные пользователь, интерес и категория (`select_related()`), дата, всего часов, статус (view-функция `subscription_detail()`).
 
-Если интерес или подписка с указанным номером не найдены, страница возвращает сообщение и код статуса 404; адрес, которого нет среди маршрутов, обрабатывает `handler404` (см. ниже). Ссылки навигации («Главная», «Интересы», «Подписки», «Статистика») есть на каждой странице, из списков можно перейти к карточкам, из карточки подписки — к карточке интереса. Номера записей в базе совпадают с номерами в JSON, поэтому ссылки из списков на страницы интереса и подписки ведут на те же записи. Подробнее о базе данных — в разделе «База данных SQLite (ПР7)».
+Если интерес или подписка с указанным номером не найдены, `get_object_or_404()` прерывает обработку, а Django возвращает ответ 404, который оформляет `handler404` (см. ниже); тот же обработчик отвечает на адреса, которых нет среди маршрутов. Ссылки навигации («Главная», «Интересы», «Подписки», «Статистика») есть на каждой странице, из списков можно перейти к карточкам, из карточки подписки — к карточке интереса. Номера записей в базе Django совпадают с номерами в JSON и в базе ПР7 (при переносе сохраняются `id`). Подробнее — в разделе «Модели Django и ORM (ПР9)».
 
 Как запрос доходит до страницы (на примере `/interests/1/`):
 ```text
 браузер: GET /interests/1/
 → interest_tracker/urls.py: path("interests/", include("interests.urls"))
 → interests/urls.py: path("<int:interest_id>/", views.interest_detail, name="detail")
-→ interest_detail(request, interest_id=1): загрузка данных, find_interest_by_id(), can_subscribe(), подготовка контекста
+→ interest_detail(request, interest_id=1): get_object_or_404(), Interest.can_subscribe() для каждого пользователя, подготовка контекста
 → render(): шаблон interests/interest_detail.html, который наследует templates/base.html
 → HttpResponse: HTML-страница и код статуса 200
 ```
@@ -132,7 +133,7 @@ HTML веб-страниц находится в шаблонах Django (см. 
 ### Обработка ошибки 404, DEBUG и ALLOWED_HOSTS
 В `interest_tracker/settings.py` заданы `DEBUG = False` и `ALLOWED_HOSTS = ['127.0.0.1', 'localhost']`, в `interest_tracker/urls.py` — `handler404 = 'homepage.views.page_not_found'`.
 - Адрес не подошёл ни под один маршрут (`/abc/`, `/interests/abc/`): Django получает `Resolver404` и вызывает обработчик `handler404` — функцию `page_not_found(request, exception)` (`homepage/views.py`). Она отображает шаблон `homepage/page_not_found.html` («Страница не найдена») с кодом 404. Без `handler404` Django использовал бы стандартный `django.views.defaults.page_not_found` с простой страницей «Not Found».
-- Маршрут найден, но объекта нет (`/interests/999/`): исключения нет, шаблон интереса (или подписки) показывает сообщение «Интерес не найден» («Подписка не найдена»), а view передаёт в `render()` код `status=404`; `handler404` не вызывается.
+- Маршрут найден, но объекта нет (`/interests/999/`): `get_object_or_404()` вызывает `Http404`, и Django передаёт его в тот же `handler404`: страница «Страница не найдена» с кодом 404. До ПР9 view сама передавала `status=404` и показывала сообщение «Интерес не найден».
 - Пользовательский `handler404` работает только при `DEBUG = False`; при `DEBUG = True` Django показывает свою техническую страницу 404 со списком маршрутов.
 - При `DEBUG = False` Django требует непустой `ALLOWED_HOSTS`: без него `runserver` не запускается (`You must set settings.ALLOWED_HOSTS if DEBUG is False`), а запросы с чужим именем хоста получают ответ 400. В списке — имена, по которым открывают сайт: `http://127.0.0.1:8000/` и `http://localhost:8000/`.
 - При `DEBUG = False` сервер разработки не раздаёт статические файлы. Поэтому для просмотра сайта с собственным CSS, JavaScript и логотипом (ПР6) сервер запускают с флагом `--insecure`: `python manage.py runserver --insecure`. Для отладки (подробные страницы ошибок с трассировкой) можно временно поставить `DEBUG = True`: тогда статика раздаётся и без флага, но пользовательский `handler404` не работает.
@@ -167,19 +168,19 @@ HTML веб-страниц находится в шаблонах Django (см. 
 ### Контекст, циклы и условия
 View передаёт данные словарём. Например, `interests()`:
 ```python
-context = {"interests": load_data()["interests"]}
+context = {"interests": Interest.objects.order_by("name")}
 return render(request, "interests/interest_list.html", context)
 ```
 В шаблоне имена ключей контекста становятся переменными: `{% for interest in interests %}`, `{{ interest.name }}`, `{{ interest.category.name }}`. Для пустой коллекции используется `{% empty %}` («Интересы не найдены.», «Подписки не найдены.»). Условия `{% if %}` выбирают вид страницы и значков: интерес активен или в архиве, подписка активна или отменена (`subscription.is_cancelled`), можно или нельзя подписаться (`item.allowed`), найден ли объект. Проверка `can_subscribe()` вызывается во view (шаблон не вычисляет правила), результат передаётся в контексте списком `users_info`.
 
-Если объект не найден, view передаёт `None`, шаблон показывает сообщение через `{% if interest %} ... {% else %} ... {% endif %}`, а код 404 задаётся параметром `status=404 if interest is None else 200` вызова `render()`.
+Если объект не найден, view вызывает `get_object_or_404()`: Django возвращает ответ 404 (страница «Страница не найдена»), поэтому шаблон карточки получает только существующий объект. (В ПР6 view передавала `None`, шаблон показывал сообщение через `{% if interest %} ... {% else %} ... {% endif %}`, а код 404 задавался параметром `status`.)
 
 ### Фильтры шаблонов
 - `{{ interests|length }}` и `{{ subscriptions|length }}` — количество элементов («Всего интересов: 6»);
 - `{{ interest.name|default:"Без названия" }}` — значение по умолчанию для пустого названия;
 - `{{ interest.weekly_goal|floatformat:1 }}` — число с одним знаком после запятой («8,0 ч»; запятая — из настройки `LANGUAGE_CODE = 'ru-RU'`).
 
-Фильтры используются только для представления данных, бизнес-логика остаётся в Python. Даты подписок хранятся в JSON и в объектах строкой `ГГГГ-ММ-ДД` и выводятся без преобразования (фильтр `date` работает только с объектами даты; они появятся при переходе на Django ORM). В консольной версии дата по-прежнему показывается как `ДД.ММ.ГГГГ`.
+Фильтры используются только для представления данных, бизнес-логика остаётся в Python. Даты подписок в моделях Django — объекты `date` (поле `DateField`), поэтому в шаблонах работает фильтр `date`: `{{ subscription.start_date|date:"d.m.Y" }}` выводит «08.09.2026». В JSON даты остаются строками `ГГГГ-ММ-ДД`; консольная версия показывает дату как `ДД.ММ.ГГГГ`.
 
 ### Именованные URL и пространства имён
 В `urls.py` каждого приложения задан `app_name` и имена маршрутов; ссылки в шаблонах строятся тегом `{% url %}`, адреса в HTML не записаны:
@@ -206,13 +207,13 @@ return render(request, "interests/interest_list.html", context)
 В шаблонах подключается `{% load static %}` и используется `{% static 'homepage/css/style.css' %}`. Проверить поиск файла можно командой `python manage.py findstatic homepage/img/logo.png`.
 
 ## Основные операции
-### Используется в веб-интерфейсе (ПР5, ПР6, ПР7)
-- просмотр списка интересов и отбор по категории (SQLite);
-- поиск интересов, доступных для подписки пользователю (SQLite);
-- просмотр страницы интереса и проверка правил подписки для каждого пользователя (JSON);
-- просмотр активных подписок и их количества (SQLite);
-- просмотр страницы подписки со связанными объектами (JSON);
-- статистика: занятия, часы по интересам, подписки и интересы по категориям (SQLite).
+### Используется в веб-интерфейсе (ПР5–ПР9)
+- просмотр списка интересов, отбор по категории и поиск по названию или категории (ORM);
+- поиск интересов, доступных для подписки пользователю (ORM);
+- просмотр страницы интереса и проверка правил подписки для каждого пользователя (ORM, `Interest.can_subscribe()`);
+- просмотр активных подписок: фильтры по дате, интересу и пользователю, сортировка, постраничный вывод (ORM);
+- просмотр страницы подписки со связанными объектами и суммой часов (ORM);
+- статистика: занятия, часы по интересам, подписки и интересы по категориям (ORM).
 
 ### Консольная версия (ПР3)
 Подписки (главная функция):
@@ -236,15 +237,15 @@ return render(request, "interests/interest_list.html", context)
 - оформление и отмена подписки;
 - отметка занятия по подписке;
 - прогресс за неделю и рекомендация;
-- поиск и сортировка интересов;
+- сортировка интересов по недельной цели (поиск интересов по названию в вебе есть с ПР9);
 - добавление интереса, категории и пользователя, поиск пользователя.
 
 ## Хранение данных
-Данные хранятся в JSON-файлах каталога `data/`: `categories.json`, `interests.json`, `users.json`, `subscriptions.json`. Даты записаны строкой `ГГГГ-ММ-ДД`. С ПР7 те же данные перенесены в базу SQLite `data/interest_tracker.sqlite` (см. раздел «База данных SQLite (ПР7)»): страницы списка интересов, подписок, поиска и статистики читают базу, консольная версия и карточки интереса и подписки — JSON.
+Данные хранятся в JSON-файлах каталога `data/`: `categories.json`, `interests.json`, `users.json`, `subscriptions.json`. Даты записаны строкой `ГГГГ-ММ-ДД`. С ПР7 те же данные перенесены в базу SQLite `data/interest_tracker.sqlite`, а с ПР9 — в базу Django `db.sqlite3` (разделы «База данных SQLite (ПР7)» и «Модели Django и ORM (ПР9)»): все веб-страницы читают базу Django через ORM, консольная версия работает с JSON.
 
 При загрузке (`storage.py`) данные JSON преобразуются в объекты `Category`, `Interest`, `User` и `Subscription`, при сохранении — обратно в словари. Вместо связанных объектов в JSON записываются их номера: `category_id`, `user_id`, `interest_id`. При загрузке по номерам находятся объекты из уже загруженных списков; запись со ссылкой на несуществующий объект пропускается. Если файла нет, программа начинает с пустых данных; если файл повреждён, выводится сообщение и данные из него не загружаются. Данные сохраняются после каждого изменения.
 
-Страницы интереса и подписки только читают JSON: функция `load_data()` (`homepage/views.py`) вызывает функции загрузки из `storage.py` и возвращает словарь со списками объектов. Путь к каталогу `data/` строится от `BASE_DIR` из `settings.py`, поэтому не зависит от текущего каталога.
+До ПР9 страницы интереса и подписки читали JSON функцией `load_data()` из `homepage/views.py`; после перехода на ORM она не нужна и удалена. JSON-файлы используют консольная версия и скрипт переноса `db/import_json.py` (ПР7).
 
 `data/interests.json`:
 ```json
@@ -277,9 +278,11 @@ return render(request, "interests/interest_list.html", context)
 ```
 
 ## База данных SQLite (ПР7)
-В ПР7 проект получил слой реляционного хранения данных: файл базы `data/interest_tracker.sqlite`, SQL-запросы и их использование в Django-представлениях. Работа идёт напрямую через SQL и модуль `sqlite3` стандартной библиотеки Python, Django ORM пока не используется (служебный файл `db.sqlite3` Django — отдельная база, к данным проекта не относится). JSON-файлы остаются в проекте: из них данные один раз переносятся в базу, а консольная версия (`main.py`) продолжает работать с ними.
+В ПР7 проект получил слой реляционного хранения данных: файл базы `data/interest_tracker.sqlite`, SQL-запросы и их использование в Django-представлениях. Работа идёт напрямую через SQL и модуль `sqlite3` стандартной библиотеки Python, Django ORM на тот момент не использовался (служебный файл `db.sqlite3` Django был отдельной базой и к данным проекта не относился). JSON-файлы остаются в проекте: из них данные один раз переносятся в базу, а консольная версия (`main.py`) продолжает работать с ними.
 
 Путь данных на веб-страницах: SQLite → SQL-запрос → `sqlite3` во view-функции → контекст → шаблон → страница.
+
+> С ПР9 веб-страницы получают данные через Django ORM из базы Django `db.sqlite3` (раздел «Модели Django и ORM (ПР9)»). Файлы `sql/schema.sql`, `sql/queries.sql`, `db/database.py` и `db/import_json.py` сохранены как предыдущая реализация, а `data/interest_tracker.sqlite` — как источник данных для переноса в ORM. Ниже описана работа ПР7.
 
 ### Структура базы данных
 Пять таблиц: по таблице на сущность ПР3 и таблица занятий. В JSON занятия лежат внутри подписки (словарь `hours_by_date`), в реляционной базе их выносят в отдельную таблицу `activities`: одна запись — одно занятие.
@@ -376,7 +379,7 @@ return render(request, "interests/interest_list.html", {"interests": rows})
 - `sqlite3.Row` позволяет обращаться к полям по именам: `{{ interest.category_name }}` в шаблоне (без него были бы индексы `{{ interest.2 }}`, зависящие от порядка столбцов); имена задаются псевдонимами `AS`;
 - значения из адресной строки (`request.GET`) передаются только параметрами `?`, отдельно от текста запроса; конкатенация строк и f-строки для подстановки значений не используются, поэтому запросы вроде `?category=1 OR 1=1` или `?user=1;DROP TABLE users` ничего не находят и ничего не изменяют;
 - пустой результат — не ошибка: запрос выполнился, но подходящих записей нет; шаблон показывает сообщение через `{% empty %}` («Интересы не найдены», «Доступных интересов нет»), а для неизвестного пользователя — «Пользователь не найден»;
-- страницы интереса `/interests/<id>/` и подписки `/subscriptions/<id>/` пока работают с JSON (с ПР5): их перевод на базу — в следующих работах.
+- в ПР7 страницы интереса `/interests/<id>/` и подписки `/subscriptions/<id>/` работали с JSON; с ПР9 все страницы переведены на Django ORM.
 
 ### Что заменил SQL
 | Было (Python, ПР3–ПР6) | Стало (SQL, ПР7) |
@@ -387,6 +390,106 @@ return render(request, "interests/interest_list.html", {"interests": rows})
 | сортировка (`sorted()` с `lambda`) | `ORDER BY` |
 | правило `can_subscribe()` для списка интересов | подзапрос `NOT IN` |
 | часы по интересам (`get_statistics()`) | `SUM` и `GROUP BY` |
+
+## Модели Django и ORM (ПР9)
+В ПР9 слой данных переведён с `sqlite3` на Django ORM. Предметная область, страницы, маршруты и шаблоны сохранены, изменился способ получения данных: вместо SQL-запросов во view используются модели.
+
+Путь данных на веб-страницах: view-функция → Django ORM → SQLite (`db.sqlite3`) → объекты моделей → контекст → шаблон → страница.
+
+| ПР7 (SQL) | ПР9 (ORM) |
+|---|---|
+| структура таблиц: `sql/schema.sql` | модели в `models.py` приложений |
+| изменение структуры: правка схемы вручную | миграции Django |
+| подключение: `sqlite3.connect()` | менеджер `objects` модели |
+| запросы: `sql/queries.sql` | `filter()`, `exclude()`, `order_by()`, `annotate()`, `aggregate()` |
+| связанные данные: `JOIN` | `select_related()`, обратные связи (`related_name`) |
+| результат запроса: `sqlite3.Row` | объекты моделей или словари (`values()`) |
+
+### Модели и связи
+Пять моделей — по таблицам ПР7. Они не совпадают с классами пакета `models/` (ПР3): это отдельные классы для работы с базой.
+
+| Модель | Файл | Поля | Связи |
+|---|---|---|---|
+| `Category` | `interests/models.py` | `name` | — |
+| `Interest` | `interests/models.py` | `name`, `weekly_goal` (`FloatField`), `is_active` (`BooleanField`, по умолчанию `True`) | `category` → `Category` (`ForeignKey`, `PROTECT`, `related_name="interests"`) |
+| `User` | `users/models.py` | `name`, `email` (`EmailField`) | — |
+| `Subscription` | `subscriptions/models.py` | `start_date` (`DateField`), `is_cancelled` (`BooleanField`, по умолчанию `False`) | `user` → `User`, `interest` → `Interest` (`ForeignKey`, `PROTECT`, `related_name="subscriptions"`) |
+| `Activity` | `subscriptions/models.py` | `activity_date` (`DateField`), `hours` (`FloatField`) | `subscription` → `Subscription` (`ForeignKey`, `CASCADE`, `related_name="activities"`) |
+
+- первичный ключ `id` Django добавляет сам (`BigAutoField`, настройка `DEFAULT_AUTO_FIELD`);
+- `on_delete=PROTECT` запрещает удалять категорию, пользователя и интерес, пока на них ссылаются интересы и подписки: история подписок сохраняется; занятия — часть подписки, поэтому для них `CASCADE`: они удаляются вместе с подпиской;
+- `related_name` задаёт обратный доступ: `category.interests.all()`, `interest.subscriptions.all()`, `user.subscriptions.all()`, `subscription.activities.all()`;
+- `subscription.user` и `subscription.interest` — связанные объекты, `subscription.user_id` и `subscription.interest_id` — только номера (столбцы внешних ключей в таблице);
+- методы моделей: `Interest.can_subscribe(user)` (правило подписки), `Subscription.cancel()`, `Subscription.get_total_hours()` (`aggregate(Sum("hours"))`), `__str__()`;
+- класс `Meta`: сортировка по умолчанию (`ordering`) и русские названия (`verbose_name`).
+
+Модель `User` — пользователь предметной области, а не встроенная модель аутентификации Django: вход и регистрация не реализуются. Приложение `users` создано командой `python manage.py startapp users` и записано в `INSTALLED_APPS`.
+
+### Миграции
+```text
+python manage.py makemigrations interests users subscriptions
+python manage.py sqlmigrate subscriptions 0001
+python manage.py migrate
+python manage.py showmigrations
+python manage.py makemigrations --check
+```
+- `makemigrations` создаёт файлы миграций (`0001_initial.py` в `interests/migrations/`, `users/migrations/`, `subscriptions/migrations/`); сама по себе она базу не меняет;
+- `sqlmigrate` показывает SQL миграции, `migrate` применяет её к базе, `showmigrations` отмечает применённые миграции знаком `[X]`;
+- `makemigrations --check` сообщает, остались ли изменения моделей без миграции (ожидаемый ответ: `No changes detected`);
+- файлы миграций хранятся в Git; таблицы создаются в `db.sqlite3` (настройка `DATABASES` не менялась): `interests_category`, `interests_interest`, `users_user`, `subscriptions_subscription`, `subscriptions_activity`.
+
+### Стратегия перехода и перенос данных
+Выбран вариант «таблицы под управлением Django и перенос данных»: исходная база ПР7 `data/interest_tracker.sqlite` не изменяется и служит источником, Django работает с отдельным файлом `db.sqlite3` (в Git не хранится). Применять миграции к самой базе ПР7 нельзя: Django не знает о её таблицах и попытался бы создать их заново. Перед работой сделана резервная копия `data/interest_tracker_backup.sqlite` (исключена из Git правилом в `.gitignore`).
+- `db/inspect_source_db.py` только читает исходную базу: таблицы, столбцы, число записей, проверка внешних ключей (`python db/inspect_source_db.py`);
+- `db/import_sqlite_to_orm.py` переносит данные через модели в порядке «категории, пользователи, интересы, подписки, занятия»: `update_or_create(pk=...)` сохраняет прежние номера записей (повторный запуск безопасен — записи обновляются, а не дублируются), `transaction.atomic()` откатывает всё при ошибке, строки дат переводятся в `date`, значения 0 и 1 — в `bool` (`python db/import_sqlite_to_orm.py`).
+
+Результат переноса: 5 категорий, 2 пользователя, 6 интересов, 6 подписок, 12 занятий (22,0 ч) — как в ПР7. Порядок на новом компьютере: `python manage.py migrate`, затем `python db/import_sqlite_to_orm.py`.
+
+### ORM-запросы проекта
+| № | Что делает | Запрос | Где используется |
+|---|---|---|---|
+| 1 | набор объектов, сортировка | `Category.objects.order_by("name")` | кнопки категорий на `/interests/` |
+| 2 | объект по номеру, 404, связь | `get_object_or_404(Interest.objects.select_related("category"), pk=...)` | `/interests/<id>/` |
+| 3 | объект через `get()` | `User.objects.get(pk=...)` и `except User.DoesNotExist` | `/interests/available/` |
+| 4 | фильтр по полю связанной модели | `Interest.objects.filter(category__id=...)` | `/interests/?category=` |
+| 5 | поиск по нескольким полям | `filter(Q(name__iregex=...) \| Q(category__name__iregex=...))` | `/interests/?q=` |
+| 6 | фильтр по нескольким условиям | `self.subscriptions.filter(user=user, is_cancelled=False).exists()` | `Interest.can_subscribe()` |
+| 7 | исключение записей | `Interest.objects.filter(is_active=True).exclude(pk__in=subscribed_ids)` | `/interests/available/` |
+| 8 | номера занятых интересов | `Subscription.objects.filter(user=..., is_cancelled=False).values_list("interest_id", flat=True)` | `/interests/available/` |
+| 9 | цепочка фильтров | `Subscription.objects.filter(is_cancelled=False)`, затем `.filter(start_date=...)`, `.filter(interest__id=...)`, `.filter(user__id=...)` | `/subscriptions/` |
+| 10 | сортировка по полю связанной модели | `.order_by(sort_field, "id")`, поле — из словаря `sort_fields` | `/subscriptions/?sort=` |
+| 11 | вычисляемые поля, `values()` | `.annotate(user_name=F("user__name"), interest_name=F("interest__name")).values(...)` | `/subscriptions/` |
+| 12 | постраничный вывод | `Paginator(subscriptions_data, 3)`, `get_page()` | `/subscriptions/?page=` |
+| 13 | подсчёт записей | `Subscription.objects.filter(is_cancelled=False).count()` | `/subscriptions/` |
+| 14 | связанные объекты одним запросом | `Subscription.objects.select_related("user", "interest__category")` | `/subscriptions/<id>/` |
+| 15 | сводные показатели | `Activity.objects.aggregate(Count("id"), Coalesce(Sum("hours"), 0.0))` | `/subscriptions/statistics/` |
+| 16 | счёт с условием (`Q`) | `Interest.objects.annotate(Count("subscriptions", filter=Q(subscriptions__is_cancelled=False)))` | `/subscriptions/statistics/` |
+| 17 | сумма по цепочке связей | `Interest.objects.annotate(Coalesce(Sum("subscriptions__activities__hours"), 0.0))` | `/subscriptions/statistics/` |
+| 18 | группировка | `Category.objects.annotate(Count("interests"))` | `/subscriptions/statistics/` |
+| 19 | фильтр по агрегату (`HAVING`) | `.filter(interests_count__gt=1)` | `/subscriptions/statistics/` |
+| 20 | сумма по обратной связи | `self.activities.aggregate(total=Sum("hours"))` | `Subscription.get_total_hours()` |
+
+Пояснения:
+- статистика строится от `Interest` и `Category`, а не от `Subscription`: интересы и категории без связанных записей остаются в результате со счётом 0 (аналог `LEFT JOIN` из ПР7); условие `Q(subscriptions__is_cancelled=False)` ограничивает только подсчёт;
+- часы по интересам считаются по всем подпискам, включая отменённые, как в консольной статистике: общий итог 22,0 ч;
+- `values()` возвращает словари: шаблон списка подписок использует `subscription.user_name`; у объектов моделей (`select_related()`) обращение идёт через связь — в карточке интереса `interest.category_name` заменено на `interest.category.name`;
+- значения из адресной строки проверяются: номера — методом `isdecimal()`, дата — `strptime()` (при ошибке выводится «Укажите корректную дату.»), поле сортировки выбирается только из словаря `sort_fields` (неизвестное значение — сортировка по дате), некорректный `?page=` открывает первую страницу (`get_page()`);
+- номера проверяются как `category__id`, `interest__id`, `user__id`, а не `category_id`: слишком большое число даёт пустой результат, а не ошибку базы данных;
+- SQLite сравнивает без учёта регистра только латиницу (`LIKE`), поэтому `icontains` не находит «бег» в «Бег»; для поиска использован `iregex` с `re.escape()`: он работает и для кириллицы, а спецсимволы в запросе (`.`, `*`) воспринимаются как обычный текст;
+- ссылки пагинации и фильтров строятся тегом `{% querystring %}`: он сохраняет остальные параметры запроса (дату, интерес, пользователя, сортировку, поиск);
+- пустой результат — не ошибка: шаблоны показывают сообщения через `{% empty %}`.
+
+Операции создания, изменения и удаления проверяются в Django shell (`python manage.py shell`); веб-формы появятся в следующих работах. Пример:
+```python
+from interests.models import Category, Interest
+category = Category.objects.create(name="Тест")
+interest = Interest.objects.create(name="Проба", category=category, weekly_goal=1.5)
+interest.weekly_goal = 2.0
+interest.save()
+interest.delete()
+category.delete()
+```
+Удаление `Category`, пока на неё ссылается интерес, вызовет `ProtectedError`.
 
 ## Структура проекта
 ```text
@@ -402,7 +505,9 @@ personal_interesting/
 ├── db/
 │   ├── __init__.py
 │   ├── database.py
-│   └── import_json.py
+│   ├── import_json.py
+│   ├── inspect_source_db.py
+│   └── import_sqlite_to_orm.py
 ├── sql/
 │   ├── schema.sql
 │   └── queries.sql
@@ -442,6 +547,7 @@ personal_interesting/
 │   ├── admin.py
 │   ├── apps.py
 │   ├── migrations/
+│   │   └── 0001_initial.py
 │   ├── models.py
 │   ├── templates/
 │   │   └── interests/
@@ -458,6 +564,7 @@ personal_interesting/
 │   ├── admin.py
 │   ├── apps.py
 │   ├── migrations/
+│   │   └── 0001_initial.py
 │   ├── models.py
 │   ├── templates/
 │   │   └── subscriptions/
@@ -469,6 +576,14 @@ personal_interesting/
 │   ├── tests.py
 │   ├── urls.py
 │   └── views.py
+├── users/
+│   ├── __init__.py
+│   ├── admin.py
+│   ├── apps.py
+│   ├── migrations/
+│   │   └── 0001_initial.py
+│   ├── models.py
+│   └── tests.py
 ├── models/
 │   ├── __init__.py
 │   ├── categories.py
@@ -487,17 +602,18 @@ personal_interesting/
     ├── test_subscriptions.py
     └── test_storage.py
 ```
-Файл `db.sqlite3` появляется после команды `python manage.py migrate` (служебные таблицы Django) и не хранится в Git. Файл `data/interest_tracker.sqlite` — база данных проекта (ПР7), в отличие от `db.sqlite3` хранится в Git.
+Файл `db.sqlite3` появляется после команды `python manage.py migrate` (таблицы проекта и служебные таблицы Django), данные в него переносит `db/import_sqlite_to_orm.py`; в Git он не хранится. Файл `data/interest_tracker.sqlite` — база данных ПР7: в Git хранится, после ПР9 служит источником данных для переноса.
 
 ## Назначение модулей
 - `main.py` — консольная версия приложения (сохранена с ПР3): меню, ввод данных и пользовательские сценарии (подписка, отметка занятия, прогресс, добавление интереса). Загружает и сохраняет данные через `storage.py` и не хранит данные в словарях;
 - `manage.py` — запуск команд управления Django-проектом (`runserver`, `migrate`, `check`);
 - `interest_tracker/` — пакет настроек Django-проекта: `settings.py` — настройки (в том числе список приложений `INSTALLED_APPS`, каталог шаблонов `TEMPLATES`, язык и часовой пояс, `DEBUG` и `ALLOWED_HOSTS`), `urls.py` — маршрутизация верхнего уровня и `handler404`, `asgi.py` и `wsgi.py` — точки входа для серверов;
 - `templates/` — шаблоны уровня проекта: `base.html` (базовый шаблон всех страниц) и `includes/navigation.html` (навигация);
-- `homepage/` — Django-приложение главной страницы: `views.py` — функция `load_data()` (загрузка данных, её используют остальные приложения), view-функция `index()` и обработчик ошибки 404 `page_not_found()`; `urls.py` — маршрут главной страницы; `templates/homepage/` — шаблоны главной страницы и страницы «Страница не найдена»; `static/homepage/` — собственные CSS, JavaScript и логотип проекта (общие для всех страниц);
-- `interests/` — Django-приложение интересов: `views.py` — view-функции `interests()` и `available_interests()` (SQL-запросы к SQLite) и `interest_detail()` (JSON), `urls.py` — маршруты приложения, `templates/interests/` — шаблоны списка, поиска доступных интересов, страницы и карточки интереса, `models.py` — Django-модели (заполняется в следующих работах);
-- `subscriptions/` — Django-приложение подписок: `views.py` — view-функции `subscriptions()` и `statistics()` (SQL-запросы к SQLite) и `subscription_detail()` (JSON), `urls.py` — маршруты приложения, `templates/subscriptions/` — шаблоны списка, статистики, страницы и статуса подписки, `models.py` — Django-модели (заполняется в следующих работах);
-- `db/` — слой базы данных (ПР7): `database.py` — подключение к SQLite (`get_connection()`), `import_json.py` — перенос данных из JSON в базу (`python -m db.import_json`);
+- `homepage/` — Django-приложение главной страницы: `views.py` — view-функция `index()` и обработчик ошибки 404 `page_not_found()`; `urls.py` — маршрут главной страницы; `templates/homepage/` — шаблоны главной страницы и страницы «Страница не найдена»; `static/homepage/` — собственные CSS, JavaScript и логотип проекта (общие для всех страниц);
+- `interests/` — Django-приложение интересов: `models.py` — модели `Category` и `Interest`, `migrations/` — миграции, `views.py` — view-функции `interests()`, `available_interests()` и `interest_detail()` (запросы через ORM), `urls.py` — маршруты приложения, `templates/interests/` — шаблоны списка, поиска доступных интересов, страницы и карточки интереса;
+- `subscriptions/` — Django-приложение подписок: `models.py` — модели `Subscription` и `Activity`, `migrations/` — миграции, `views.py` — view-функции `subscriptions()`, `statistics()` и `subscription_detail()` (запросы через ORM), `urls.py` — маршруты приложения, `templates/subscriptions/` — шаблоны списка, статистики, страницы и статуса подписки;
+- `users/` — Django-приложение пользователей: `models.py` — модель `User` (пользователь предметной области), `migrations/` — миграции;
+- `db/` — работа с базой данных: `database.py` и `import_json.py` — подключение к SQLite и перенос данных из JSON (ПР7, `python -m db.import_json`), `inspect_source_db.py` и `import_sqlite_to_orm.py` — просмотр исходной базы и перенос её данных в модели Django (ПР9);
 - `sql/` — SQL-файлы (ПР7): `schema.sql` — создание таблиц, `queries.sql` — запросы проекта с комментариями;
 - `models/__init__.py` — позволяет импортировать классы из пакета: `from models import Category, Interest, Subscription, User`;
 - `models/categories.py` — класс `Category` и функции работы с категориями;
@@ -582,19 +698,34 @@ personal_interesting/
 | `import_categories()`, `import_users()`, `import_interests()`, `import_subscriptions()`, `import_activities()` | `db/import_json.py` | перенос данных одной таблицы из JSON в SQLite (`executemany()` с параметрами `?`) |
 | `main()` | `db/import_json.py` | импорт всех таблиц в одной транзакции с `commit()` и `rollback()` |
 
-Веб-слой (ПР5–ПР7): каждая view-функция готовит контекст и вызывает `render()`, HTML формирует шаблон.
+Перенос в ORM (ПР9):
+
+| Имя | Файл | Назначение |
+|---|---|---|
+| (скрипт) | `db/inspect_source_db.py` | чтение исходной базы: таблицы, столбцы, число записей, проверка внешних ключей |
+| `read_source()` | `db/import_sqlite_to_orm.py` | чтение таблиц исходной базы ПР7 (только чтение) |
+| `main()` | `db/import_sqlite_to_orm.py` | перенос данных в модели Django: `update_or_create(pk=...)` в одной транзакции `transaction.atomic()` |
+
+Модели Django (ПР9):
+
+| Имя | Файл | Назначение |
+|---|---|---|
+| `Interest.can_subscribe()` | `interests/models.py` | правило подписки через ORM: интерес активен и у пользователя нет его активной подписки; используется страницей интереса |
+| `Subscription.cancel()` | `subscriptions/models.py` | отмена подписки: `save(update_fields=["is_cancelled"])` |
+| `Subscription.get_total_hours()` | `subscriptions/models.py` | сумма часов занятий: `aggregate(Sum("hours"))`; используется страницей подписки |
+
+Веб-слой (ПР5–ПР9): каждая view-функция готовит контекст и вызывает `render()`, HTML формирует шаблон. Данные view получает через ORM.
 
 | Имя | Файл | Шаблон | Назначение |
 |---|---|---|---|
-| `load_data()` | `homepage/views.py` | — | загрузка всех данных проекта из JSON через функции `storage.py` |
 | `index()` | `homepage/views.py` | `homepage/index.html` | главная страница `/` |
-| `page_not_found()` | `homepage/views.py` | `homepage/page_not_found.html` | обработчик `handler404`: страница «Страница не найдена» с кодом 404 для адресов вне маршрутов |
-| `interests()` | `interests/views.py` | `interests/interest_list.html` | страница `/interests/`: список интересов и фильтр по категории (SQLite) |
-| `available_interests()` | `interests/views.py` | `interests/available.html` | страница `/interests/available/`: интересы, доступные выбранному пользователю (SQLite) |
-| `interest_detail()` | `interests/views.py` | `interests/interest_detail.html` | страница `/interests/<int:interest_id>/` (JSON); если интереса нет — код 404 |
-| `subscriptions()` | `subscriptions/views.py` | `subscriptions/subscription_list.html` | страница `/subscriptions/`: активные подписки и их количество (SQLite) |
-| `statistics()` | `subscriptions/views.py` | `subscriptions/statistics.html` | страница `/subscriptions/statistics/`: статистика (SQLite) |
-| `subscription_detail()` | `subscriptions/views.py` | `subscriptions/subscription_detail.html` | страница `/subscriptions/<int:subscription_id>/` (JSON); если подписки нет — код 404 |
+| `page_not_found()` | `homepage/views.py` | `homepage/page_not_found.html` | обработчик `handler404`: страница «Страница не найдена» с кодом 404 |
+| `interests()` | `interests/views.py` | `interests/interest_list.html` | страница `/interests/`: список интересов, фильтр по категории и поиск |
+| `available_interests()` | `interests/views.py` | `interests/available.html` | страница `/interests/available/`: интересы, доступные выбранному пользователю |
+| `interest_detail()` | `interests/views.py` | `interests/interest_detail.html` | страница `/interests/<int:interest_id>/`; если интереса нет — 404 |
+| `subscriptions()` | `subscriptions/views.py` | `subscriptions/subscription_list.html` | страница `/subscriptions/`: активные подписки, фильтры, сортировка, пагинация |
+| `statistics()` | `subscriptions/views.py` | `subscriptions/statistics.html` | страница `/subscriptions/statistics/`: статистика |
+| `subscription_detail()` | `subscriptions/views.py` | `subscriptions/subscription_detail.html` | страница `/subscriptions/<int:subscription_id>/`; если подписки нет — 404 |
 
 ## Требования
 - Python 3.10 или новее;
@@ -610,19 +741,22 @@ pip install -r requirements.txt
 ```
 
 ## Запуск программы
-Веб-версия (Django). База проекта `data/interest_tracker.sqlite` уже лежит в репозитории; если её нужно создать заново — команды в разделе «База данных SQLite (ПР7)».
+Веб-версия (Django). Данные хранит база Django `db.sqlite3`; в Git она не хранится, поэтому после клонирования репозитория нужно создать таблицы и перенести в них данные из `data/interest_tracker.sqlite`:
 ```text
 python manage.py migrate
+python db/import_sqlite_to_orm.py
 python manage.py runserver --insecure
 ```
-Команда `migrate` выполняется один раз: она применяет встроенные миграции Django и создаёт файл `db.sqlite3`. Флаг `--insecure` нужен, потому что в настройках `DEBUG = False`, а при таком значении сервер разработки не раздаёт статические файлы (CSS, JavaScript, логотип); без флага страницы откроются без оформления проекта. После запуска сервера открыть в браузере адрес:
+Команды `migrate` и `python db/import_sqlite_to_orm.py` выполняются один раз: первая применяет миграции Django и проекта и создаёт таблицы в `db.sqlite3`, вторая переносит данные (повторный запуск безопасен: записи обновляются, а не дублируются). Флаг `--insecure` нужен, потому что в настройках `DEBUG = False`, а при таком значении сервер разработки не раздаёт статические файлы (CSS, JavaScript, логотип); без флага страницы откроются без оформления проекта. После запуска сервера открыть в браузере адрес:
 ```text
 http://127.0.0.1:8000/
 ```
 
-Системная проверка проекта Django:
+Системная проверка проекта Django и состояние миграций:
 ```text
 python manage.py check
+python manage.py showmigrations
+python manage.py makemigrations --check
 ```
 
 Проверка, что Django находит статические файлы проекта:
@@ -684,17 +818,18 @@ python main.py
 
 Что можно проверить в браузере на подготовленных данных:
 - `/` — главная: логотип, навигация, кнопки разделов, в подвале «© 2026 Interest Tracker» (год подставляет `main.js`);
-- `/interests/` — «Всего интересов: 6», кнопки-фильтры категорий, карточки интересов из базы SQLite, у каждой кнопка «Подробнее»;
+- `/interests/` — «Всего интересов: 6», поле поиска, кнопки-фильтры категорий, карточки интересов из базы (ORM), у каждой кнопка «Подробнее»;
 - `/interests/?category=2` — только интересы категории «Спорт» (Бег, Стрельба из лука), «Всего интересов: 2»;
+- `/interests/?q=бег` — только «Бег» (регистр не важен); `?q=спорт` — оба интереса категории «Спорт» (поиск идёт по названию интереса и по названию категории); `?q=zzz` — «Интересы не найдены.»;
 - `/interests/available/` — форма выбора пользователя; для Ивана Петрова (`?user=1`) — «Английский язык», «Бег», «Гитара», для Анны Смирновой (`?user=2`) — «Бег», «Изучение веб-разработки на Python», «Стрельба из лука»; для несуществующего пользователя (`?user=999`) — «Пользователь не найден»;
 - `/subscriptions/statistics/` — «Отмечено занятий: 12, всего часов: 22,0», таблицы подписок и часов по интересам, интересов по категориям, список «Спорт: 2»;
 - `/interests/1/` — Иван Петров: «подписка невозможна» (уже подписан), Анна Смирнова: «можно подписаться»;
 - `/interests/2/` — «Бег»: оба пользователя могут подписаться, прежние подписки отменены;
 - `/interests/5/` — интерес в архиве: подписка невозможна для всех;
-- `/subscriptions/` — «Активных подписок: 4», четыре активные подписки (№1, 3, 4, 6) со значком статуса; отменённые (№2, 5) в список не входят;
+- `/subscriptions/` — «Активных подписок: 4, найдено по условиям: 4», по 3 подписки на странице (№1, 3, 4 на первой, №6 на второй) и навигация по страницам; отменённые (№2, 5) в список не входят; фильтры (`?user=2` — две подписки Анны, `?interest=1`, `?date=2026-09-10`) и сортировка (`?sort=user`, `?sort=interest`) сохраняются при переходе между страницами; `?date=не-дата` — сообщение «Укажите корректную дату.», `?page=abc` — первая страница;
 - `/subscriptions/1/` — активная подписка, отмечено 13,0 ч;
 - `/subscriptions/2/` — отменённая подписка, статус «отменена»;
-- `/interests/999/` и `/subscriptions/999/` — страница с сообщением «не найден» и код статуса 404 (формирует view);
+- `/interests/999/` и `/subscriptions/999/` — страница «Страница не найдена» и код статуса 404 (`get_object_or_404()` вызывает `Http404`, ответ формирует `handler404`);
 - `/abc/` или `/interests/abc/` — страница «Страница не найдена» и код статуса 404 (формирует `handler404`).
 
 ## Тестирование
@@ -711,13 +846,13 @@ pytest -v
 - функции ПР1: расчёт прогресса и рекомендацию;
 - сохранение подписок в JSON и восстановление связей с объектами при загрузке.
 
-Веб-страницы на этом этапе проверяются вручную в браузере (адреса из раздела выше); автоматические тесты веб-слоя планируются в следующих работах. После перехода на шаблоны (ПР6) и на базу данных (ПР7) все 17 тестов проходят без изменений: пакет `models/`, `storage.py` и `main.py` не менялись. Слой базы данных ПР7 проверяется командами из раздела «База данных SQLite (ПР7)»: количество записей после импорта, запросы в консоли SQLite, страницы в браузере.
+Веб-страницы на этом этапе проверяются вручную в браузере (адреса из раздела выше); автоматические тесты веб-слоя планируются в следующих работах. После перехода на шаблоны (ПР6), базу данных (ПР7) и Django ORM (ПР9) все 17 тестов проходят без изменений: пакет `models/`, `storage.py` и `main.py` не менялись, тесты проверяют классы ПР3, а не модели Django. Модели, миграции и ORM-запросы ПР9 проверены командами `python manage.py check`, `makemigrations --check` и `showmigrations`, в Django shell и вручную в браузере; результаты страниц сверены с SQL-запросами ПР7 (`sql/queries.sql`) и с функциями `can_subscribe()` и `get_statistics()` ПР3: совпадают списки, доступные интересы, подписки, часы (22,0 ч) и статистика.
 
 ## Проверка качества кода
 ```text
 flake8
 ```
-Если замечаний нет, flake8 ничего не выводит. Каталог `.venv` исключён из проверки. Для сгенерированных Django файлов `manage.py` и `interest_tracker/settings.py` в `.flake8` отключена только проверка длины строки (E501): в них есть длинные строки с путями к классам Django.
+Если замечаний нет, flake8 ничего не выводит. Каталог `.venv` исключён из проверки. Для сгенерированных Django файлов `manage.py`, `interest_tracker/settings.py` и файлов миграций (`*/migrations/*.py`) в `.flake8` отключена только проверка длины строки (E501): в них есть длинные строки с путями к классам Django.
 
 ## Git
 Исходный код хранится в Git-репозитории: https://github.com/Mikle-kekich/Personal-Interes
@@ -726,10 +861,20 @@ flake8
 ```text
 git status
 ```
-Коммиты ПР5 начинаются с метки `PR5:`, коммиты ПР6 — с метки `PR6:`, коммиты ПР7 — с метки `PR7:` (например, `PR7: add SQLite database and SQL queries`).
+Коммиты ПР5 начинаются с метки `PR5:`, коммиты ПР6 — с метки `PR6:`, коммиты ПР7 — с метки `PR7:`, коммиты ПР9 — с метки `PR9:` (например, `PR9: переход на Django ORM`). Файлы миграций хранятся в Git, локальная база `db.sqlite3` и резервная копия `data/interest_tracker_backup.sqlite` — нет.
 
 ## Текущее состояние и план развития
-### Текущий этап разработки (ПР7)
+### Текущий этап разработки (ПР9)
+На ПР9 слой данных переведён на Django ORM:
+- описаны модели `Category`, `Interest`, `User`, `Subscription` и `Activity`, связи `ForeignKey` с `on_delete` и `related_name`; создано приложение `users`;
+- созданы и применены миграции (`makemigrations`, `migrate`), структура базы управляется миграциями;
+- данные из базы ПР7 перенесены в базу Django скриптом `db/import_sqlite_to_orm.py` с сохранением номеров записей и связей (5 категорий, 2 пользователя, 6 интересов, 6 подписок, 12 занятий);
+- все страницы получают данные через ORM: фильтрация, `exclude()`, поиск, сортировка по разрешённым полям, `select_related()`, `aggregate()`, `annotate()` и `Count` с `Q`, `Paginator` с сохранением параметров запроса (`{% querystring %}`);
+- некорректные параметры (дата, номера, сортировка, страница) и отсутствующие объекты обрабатываются без ошибок;
+- из представлений удалены `sqlite3` и `load_data()`; SQL-слой ПР7 (`sql/`, `db/database.py`, `db/import_json.py`) оставлен как предыдущая реализация;
+- консольная версия, JSON-хранилище, шаблоны, маршруты и все 17 тестов сохранены.
+
+Реализовано (ПР7):
 На ПР7 данные проекта перенесены из JSON в базу данных SQLite:
 - создана база данных `data/interest_tracker.sqlite`, таблицы созданы командами из `sql/schema.sql` (пять таблиц, первичные и внешние ключи);
 - данные перенесены из JSON скриптом `db/import_json.py`, подключение к базе — `db/database.py` (`PRAGMA foreign_keys = ON`);
@@ -737,8 +882,6 @@ git status
 - Django-представления получают данные из SQLite через `sqlite3` (`row_factory = sqlite3.Row`, параметризованные запросы с `?`) и передают их в шаблоны через контекст;
 - страницы списка интересов (с фильтром по категории), активных подписок, поиска доступных интересов и статистики работают с базой данных, в навигацию добавлен раздел «Статистика»;
 - консольная версия, JSON-хранилище, страницы интереса и подписки (ПР5–ПР6) и все 17 тестов сохранены.
-
-На следующих практических работах база данных будет подключена к Django с использованием Django ORM.
 
 Реализовано (ПР6):
 - шаблоны Django: базовый шаблон `base.html`, наследование `{% extends %}` и блоки `{% block %}`;
@@ -759,10 +902,10 @@ git status
 - проверка правил подписки (`can_subscribe()`) на странице интереса;
 - навигация между страницами и оформление Bootstrap 5.3.
 
-Пока не реализовано: Django ORM не используется (с базой данных проекта работают прямые SQL-запросы через `sqlite3`), страницы интереса и подписки читают JSON, веб-формы отсутствуют.
+Пока не реализовано: веб-формы и POST-запросы (создание, изменение и удаление записей через ORM выполняются только в Django shell), панель администратора для моделей, аутентификация.
 
 Планируется:
-- перенос сущностей `Category`, `Interest`, `User` и `Subscription` в Django ORM: модели в `models.py` приложений, миграции, подключение базы данных к Django (SQLite / PostgreSQL);
+- подключение PostgreSQL вместо SQLite (настройка `DATABASES`, перенос данных);
 - формы и POST-запросы: оформление и отмена подписки, отметка занятий, добавление интересов и категорий, использование отложенной логики ПР3;
 - аутентификация, регистрация и разграничение прав доступа пользователей;
 - REST API для интеграции с мобильными или внешними клиентами;

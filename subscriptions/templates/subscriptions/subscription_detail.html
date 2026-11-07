@@ -1,15 +1,10 @@
 {% extends "base.html" %}
 
 {% block title %}
-{% if subscription %}
 Подписка №{{ subscription.id }} – Interest Tracker
-{% else %}
-Подписка не найдена – Interest Tracker
-{% endif %}
 {% endblock %}
 
 {% block content %}
-{% if subscription %}
 <div class="card">
   <div class="card-body">
     <h1 class="card-title h4">
@@ -28,7 +23,8 @@
       <strong>Категория:</strong> {{ subscription.interest.category.name }}
     </p>
     <p class="card-text">
-      <strong>Дата подписки:</strong> {{ subscription.start_date }}
+      <strong>Дата подписки:</strong>
+      {{ subscription.start_date|date:"d.m.Y" }}
     </p>
     <p class="card-text">
       <strong>Отмечено часов:</strong>
@@ -40,12 +36,6 @@
     </p>
   </div>
 </div>
-{% else %}
-<h1 class="text-danger">Подписка не найдена</h1>
-<p>
-  Подписка с указанным идентификатором отсутствует.
-</p>
-{% endif %}
 <a
   href="{% url 'subscriptions:list' %}"
   class="btn btn-outline-secondary mt-3"
