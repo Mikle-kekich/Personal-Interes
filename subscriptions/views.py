@@ -29,16 +29,20 @@ def subscriptions(request: HttpRequest) -> HttpResponse:
     sort = request.GET.get("sort", "date")
     error = None
 
-    subscriptions_data = Subscription.objects.filter(is_cancelled=False)
+    status = request.GET.get("status", Subscription.Status.ACTIVE)
+    valid_statuses = dict(Subscription.Status.choices)
+    if status not in valid_statuses and status != "all":
+        status = Subscription.Status.ACTIVE
+    subscriptions_data = Subscription.objects.all()
+    if status != "all":
+        subscriptions_data = subscriptions_data.filter(status=status)
     if start_date:
         try:
             selected_date = datetime.strptime(start_date, "%Y-%m-%d").date()
         except ValueError:
             error = "Укажите корректную дату."
         else:
-            subscriptions_data = subscriptions_data.filter(
-                start_date=selected_date
-            )
+            subscriptions_data = subscriptions_data.for_date(selected_date)
     # Фильтры по полю связанной модели (interest__id, user__id): слишком
     # большое число даёт пустой результат, а не ошибку базы данных.
     if interest_id.isdecimal():
@@ -67,7 +71,7 @@ def subscriptions(request: HttpRequest) -> HttpResponse:
             "user_name",
             "interest_name",
             "start_date",
-            "is_cancelled",
+            "status",
         )
         .order_by(sort_field, "id")
     )
@@ -77,9 +81,9 @@ def subscriptions(request: HttpRequest) -> HttpResponse:
     context = {
         "subscriptions": page_obj,
         "page_obj": page_obj,
-        "subscriptions_count": Subscription.objects.filter(
-            is_cancelled=False
-        ).count(),
+        "subscriptions_count": Subscription.objects.active().count(),
+        "selected_status": status,
+        "statuses": Subscription.Status.choices,
         "start_date": start_date,
         "selected_interest": interest_id,
         "selected_user": user_id,
@@ -104,7 +108,7 @@ def statistics(request: HttpRequest) -> HttpResponse:
         .annotate(
             subscriptions_count=Count(
                 "subscriptions",
-                filter=Q(subscriptions__is_cancelled=False),
+                filter=Q(subscriptions__status=Subscription.Status.ACTIVE),
             ),
             interest_name=F("name"),
         )
@@ -132,6 +136,15 @@ def statistics(request: HttpRequest) -> HttpResponse:
     )
     popular_categories = interests_by_category.filter(interests_count__gt=1)
     context = {
+        "status_totals": Subscription.objects.aggregate(
+            active=Count("pk", filter=Q(status=Subscription.Status.ACTIVE)),
+            cancelled=Count(
+                "pk", filter=Q(status=Subscription.Status.CANCELLED)
+            ),
+            completed=Count(
+                "pk", filter=Q(status=Subscription.Status.COMPLETED)
+            ),
+        ),
         "totals": totals,
         "subscriptions_by_interest": subscriptions_by_interest,
         "hours_by_interest": hours_by_interest,

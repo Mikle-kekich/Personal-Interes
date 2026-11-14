@@ -8,6 +8,7 @@ import re
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, render
+from datetime import date
 
 from interests.models import Category, Interest
 from subscriptions.models import Subscription
@@ -53,18 +54,29 @@ def available_interests(request: HttpRequest) -> HttpResponse:
     """
     user_id = request.GET.get("user", "").strip()
     selected_user = None
+    selected_date = request.GET.get("date", "").strip()
+    error = None
+    as_of = None
+    if selected_date:
+        try:
+            as_of = date.fromisoformat(selected_date)
+        except ValueError:
+            error = "Укажите корректную дату."
     interests_data = []
     if user_id.isdecimal():
         try:
             selected_user = User.objects.get(pk=int(user_id))
         except User.DoesNotExist:
             selected_user = None
-    if selected_user is not None:
+    if selected_user is not None and error is None:
         # Номера интересов, на которые у пользователя есть активная подписка.
-        subscribed_ids = Subscription.objects.filter(
-            user=selected_user,
-            is_cancelled=False,
-        ).values_list("interest_id", flat=True)
+        subscriptions = Subscription.objects.active().filter(
+            user=selected_user
+        )
+        # Подписка действует с даты начала; это не бронь на отдельный день.
+        if as_of is not None:
+            subscriptions = subscriptions.filter(start_date__lte=as_of)
+        subscribed_ids = subscriptions.values_list("interest_id", flat=True)
         interests_data = (
             Interest.objects.select_related("category")
             .filter(is_active=True)
@@ -75,23 +87,33 @@ def available_interests(request: HttpRequest) -> HttpResponse:
         "users": User.objects.order_by("name"),
         "user_id": user_id,
         "selected_user": selected_user,
+        "selected_date": selected_date,
+        "error": error,
         "interests": interests_data,
     }
     return render(request, "interests/available.html", context)
 
 
-def interest_detail(request: HttpRequest, interest_id: int) -> HttpResponse:
-    """Страница /interests/<id>/: карточка интереса, если его нет – 404."""
+def interest_detail(
+    request: HttpRequest, interest_id=None, slug=None
+) -> HttpResponse:
+    """Карточка по slug; прежний числовой адрес сохранён."""
+    lookup = {"slug": slug} if slug is not None else {"pk": interest_id}
     interest = get_object_or_404(
         Interest.objects.select_related("category"),
-        pk=interest_id,
+        **lookup,
+    )
+    subscribed_users = set(
+        interest.subscriptions.active().values_list("user_id", flat=True)
     )
     users_info = []
     for user in User.objects.order_by("name"):
         users_info.append(
             {
                 "user": user,
-                "allowed": interest.can_subscribe(user),
+                "allowed": (
+                    interest.is_active and user.pk not in subscribed_users
+                ),
             }
         )
     context = {

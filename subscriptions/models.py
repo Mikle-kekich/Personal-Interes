@@ -1,12 +1,40 @@
 from django.db import models
 from django.db.models import Sum
+from django.core.exceptions import ValidationError
 
 from interests.models import Interest
 from users.models import User
 
 
+class SubscriptionQuerySet(models.QuerySet):
+    """Повторно используемые фильтры подписок без выполнения запроса."""
+
+    def active(self):
+        return self.filter(status=self.model.Status.ACTIVE)
+
+    def cancelled(self):
+        return self.filter(status=self.model.Status.CANCELLED)
+
+    def completed(self):
+        return self.filter(status=self.model.Status.COMPLETED)
+
+    def for_date(self, selected_date):
+        return self.filter(start_date=selected_date)
+
+
+class SubscriptionManager(models.Manager.from_queryset(SubscriptionQuerySet)):
+    pass
+
+
 class Subscription(models.Model):
     """Подписка пользователя на интерес с журналом занятий."""
+
+    class Status(models.TextChoices):
+        ACTIVE = "ACTIVE", "Активна"
+        CANCELLED = "CANCELLED", "Отменена"
+        COMPLETED = "COMPLETED", "Завершена"
+
+    objects = SubscriptionManager()
 
     # PROTECT: пока есть подписки, пользователя и интерес не удалить,
     # поэтому история подписок сохраняется.
@@ -25,15 +53,23 @@ class Subscription(models.Model):
     start_date = models.DateField(
         verbose_name="Дата подписки",
     )
-    is_cancelled = models.BooleanField(
-        default=False,
-        verbose_name="Подписка отменена",
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.ACTIVE,
+        verbose_name="Статус",
     )
 
+    def clean(self):
+        super().clean()
+        if (self.status == self.Status.ACTIVE and self.interest_id
+                and not self.interest.is_active):
+            raise ValidationError({
+                "interest": "Нельзя активировать подписку на архивный интерес."
+            })
+
     def cancel(self):
-        """Отменить подписку: сохраняется только поле is_cancelled."""
-        self.is_cancelled = True
-        self.save(update_fields=["is_cancelled"])
+        """Отменить подписку с сохранением истории занятий."""
+        self.status = self.Status.CANCELLED
+        self.save(update_fields=["status"])
 
     def get_total_hours(self):
         """Посчитать все часы, отмеченные по подписке.
@@ -51,6 +87,22 @@ class Subscription(models.Model):
         ordering = ["start_date", "pk"]
         verbose_name = "Подписка"
         verbose_name_plural = "Подписки"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "interest"],
+                condition=models.Q(status="ACTIVE"),
+                name="unique_active_user_interest",
+                violation_error_message=(
+                    "Уже есть активная подписка на интерес."
+                ),
+            ),
+            models.CheckConstraint(
+                condition=models.Q(status__in=[
+                    "ACTIVE", "CANCELLED", "COMPLETED"
+                ]),
+                name="valid_subscription_status",
+            ),
+        ]
 
 
 class Activity(models.Model):

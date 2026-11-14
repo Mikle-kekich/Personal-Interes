@@ -26,9 +26,14 @@
     </select>
   </div>
   <div class="col-auto">
+    <label for="date" class="form-label">На дату начала подписки</label>
+    <input type="date" id="date" name="date" class="form-control" value="{{ selected_date }}">
+  </div>
+  <div class="col-auto">
     <button type="submit" class="btn btn-primary">Найти</button>
   </div>
 </form>
+{% if error %}<p class="text-danger">{{ error }}</p>{% endif %}
 {% if user_id %}
   {% if selected_user %}
   <h2 class="h5">Пользователь: {{ selected_user.name }}</h2>

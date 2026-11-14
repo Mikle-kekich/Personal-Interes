@@ -15,7 +15,7 @@
     </p>
     <p class="card-text">
       <strong>Интерес:</strong>
-      <a href="{% url 'interests:detail' subscription.interest.id %}">
+      <a href="{{ subscription.interest.get_absolute_url }}">
         {{ subscription.interest.name }}
       </a>
     </p>

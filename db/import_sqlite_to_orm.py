@@ -104,7 +104,10 @@ def main():
                     "user_id": row["user_id"],
                     "interest_id": row["interest_id"],
                     "start_date": date.fromisoformat(row["start_date"]),
-                    "is_cancelled": bool(row["is_cancelled"]),
+                    "status": (
+                        Subscription.Status.CANCELLED if row["is_cancelled"]
+                        else Subscription.Status.ACTIVE
+                    ),
                 },
             )
         for row in activities:

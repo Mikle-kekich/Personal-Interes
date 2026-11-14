@@ -19,6 +19,7 @@
     <p class="card-text">
       <strong>План на неделю:</strong>
       {{ interest.weekly_goal|floatformat:1 }} ч
+      {% if interest.is_intensive %}(интенсивный план){% endif %}
     </p>
     <p class="card-text">
       <strong>Статус:</strong>

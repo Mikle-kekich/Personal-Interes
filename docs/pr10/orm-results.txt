@@ -1,0 +1,32 @@
+ПР10: фактическая проверка Django ORM
+База: D:\Разработка на базе фреймворках\personal_interesting\db.sqlite3
+Category 5
+User 3
+Interest 6
+Subscription 6
+Activity 12
+Статусы: [{'status': 'ACTIVE', 'count': 4}, {'status': 'CANCELLED', 'count': 2}]
+Всего часов: {'total': 22.0}
+all / order_by / slice: ['Английский язык', 'Бег', 'Гитара']
+filter + Q: ['Английский язык', 'Изучение веб-разработки на Python', 'Чтение научной фантастики']
+exclude: 5
+get: Изучение веб-разработки на Python
+values_list: ['Анна Смирнова', 'Иван Петров', 'Обновлённое имя']
+annotate F: [{'user_name': 'Иван Петров', 'interest_name': 'Изучение веб-разработки на Python'}, {'user_name': 'Анна Смирнова', 'interest_name': 'Английский язык'}]
+active/cancelled/completed/for_date: 4 2 0 2
+Связанные данные без/с select_related: 4 1
+SQL с JOIN: SELECT "subscriptions_subscription"."id", "subscriptions_subscription"."user_id", "subscriptions_subscription"."interest_id", "subscriptions_subscription"."start_date", "subscriptions_subscription"."status", "users_user"."id", "users_user"."name", "users_user"."email", "interests_interest"."id", "interests_interest"."name", "interests_interest"."category_id", "interests_interest"."weekly_goal", "interests_interest"."is_active", "interests_interest"."slug", "interests_interest"."is_intensive", "interests_category"."id", "interests_category"."name" FROM "subscriptions_subscription" INNER JOIN "users_user" ON ("subscriptions_subscription"."user_id" = "users_user"."id") INNER JOIN "interests_interest" ON ("subscriptions_subscription"."interest_id" = "interests_interest"."id") INNER JOIN "interests_category" ON ("interests_interest"."category_id" = "interests_category"."id") WHERE "subscriptions_subscription"."id" = 1 LIMIT 21
+Пользователи с коллекцией подписок (prefetch): 2
+GeneratedField при плане 6: True
+GeneratedField при плане 2: False
+CRUD create/save/delete: OK; изменения транзакции откатываются
+HTTP 200 / SQL 1
+HTTP 200 /interests/ SQL 3
+HTTP 200 /interests/available/?user=1 SQL 4
+HTTP 200 /subscriptions/ SQL 6
+HTTP 200 /subscriptions/?status=all&page=2 SQL 6
+HTTP 200 /subscriptions/statistics/ SQL 7
+HTTP 200 /subscriptions/1/ SQL 3
+HTTP 200 /interests/izuchenie-veb-razrabotki-na-python-1/ SQL 4
+HTTP 200 /interests/1/ SQL 4
+HTTP 404 /interests/missing/ SQL 2

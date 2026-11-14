@@ -2,6 +2,62 @@
 
 Приложение, в котором пользователи подписываются на интересы (хобби) из разных категорий, отмечают занятия по подписке и следят за выполнением недельного плана. Консольная версия (ПР3) дополнена веб-интерфейсом на Django (ПР5): интересы и подписки можно просматривать в браузере. Страницы веб-интерфейса формируются шаблонами Django (ПР6). Данные хранятся в базе данных SQLite (ПР7); с ПР9 все страницы получают их через Django ORM: таблицы описаны моделями Django, структура базы управляется миграциями.
 
+
+## Практическая работа 10
+
+Django Admin и Django ORM реализованы для предметной области личных интересов.
+Модели Room/User/Booking из учебного примера соответствуют Interest/User/Subscription.
+Веб-приложение использует `db.sqlite3`; консольный пакет `models/` и исходная база ПР7 сохранены.
+
+- Все пять моделей зарегистрированы в `/admin/`. Настроены столбцы, поиск, фильтры, сортировка, страницы по 10 записей, русские подписи, inline подписок в карточках пользователя и интереса, inline занятий в подписке.
+- `Subscription.Status`: ACTIVE, CANCELLED, COMPLETED. Менеджер `SubscriptionManager` и `SubscriptionQuerySet`: `active()`, `cancelled()`, `completed()`, `for_date()`.
+- Миграции `subscriptions/0002–0004` добавляют статус, переносят булев признак и удаляют его. История и идентификаторы сохраняются; ограничения базы запрещают повторную активную подписку и неизвестный статус. Админ-форма также проверяет архивный интерес. При программном создании для этой проверки нужно вызывать `full_clean()`.
+- `Interest.slug`, `get_absolute_url()`: транслитерация Unidecode, уникальные адреса `/interests/<slug>/`. Старые числовые адреса продолжают работать под именем `interests:detail_by_id`. Для существующих записей используется суффикс ID, для новых — UUID; переименование не меняет адрес. `bulk_create()` для Interest не используется, поскольку он обходит `save()`.
+- `Interest.is_intensive` — GeneratedField (сохраняемый столбец SQLite), план не менее 5 часов в неделю; пересчитывается базой. Миграции `interests/0002–0004` добавляют поле, заполняют slug и вводят уникальность.
+- Контекстный процессор `interest_context` передаёт `app_title` и `catalog_interests_count`; счётчик показан в навигации.
+- Список `/subscriptions/`: `status=ACTIVE|CANCELLED|COMPLETED|all` (по умолчанию ACTIVE), фильтры date, interest, user, сортировка sort=date|interest|user, страницы по 3 записи. Ссылки `{% querystring %}` сохраняют условия.
+- `/interests/available/?user=1&date=2026-09-14`: активная подписка с датой начала не позднее выбранной блокирует повторную подписку этого пользователя. CANCELLED и COMPLETED не блокируют. Без даты проверяются все текущие активные подписки. Это подписки на интересы, а не брони на отдельный день; история момента отмены не моделируется.
+- Статистика считает все три статуса; часы сохраняются независимо от отмены и завершения.
+- Список подписок использует `annotate(F())` и `values()`, детали — `select_related()`. Загрузка пользователя, интереса и категории: 4 SQL-запроса без JOIN и 1 с JOIN. Карточка интереса использует один набор ID подписчиков вместо запроса для каждого пользователя.
+
+### Запуск и проверки ПР10
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe manage.py migrate
+# Только для первичного переноса данных ПР7 в новую базу:
+# .\.venv\Scripts\python.exe db/import_sqlite_to_orm.py
+.\.venv\Scripts\python.exe manage.py createsuperuser
+$env:DJANGO_DEBUG='1'
+.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8010
+```
+
+Debug Toolbar включается только при `DJANGO_DEBUG=1` с локального IP и отключается в тестах.
+При `DJANGO_DEBUG=0` используется стандартная страница 404, маршруты панели не подключаются.
+В SQL-вкладке списка подписок видны JOIN, COUNT для пагинации и общего числа активных записей,
+LIMIT/OFFSET и два справочных запроса. Контекстный процессор добавляет один COUNT.
+Детали подписки: 3 запроса (JOIN, сумма часов и счётчик навигации).
+Не запускайте перенос ПР7 повторно после редактирования данных через админ-панель: импорт обновляет записи исходными значениями.
+
+```powershell
+.\.venv\Scripts\python.exe manage.py check
+.\.venv\Scripts\python.exe manage.py makemigrations --check --dry-run
+.\.venv\Scripts\python.exe manage.py test -v 2
+.\.venv\Scripts\python.exe -m pytest -v
+.\.venv\Scripts\python.exe -m flake8 .
+.\.venv\Scripts\python.exe docs/pr10/verify_orm.py
+```
+
+Результат 14.11.2026: 22 Django-теста и 17 прежних pytest-тестов проходят; миграции актуальны.
+Проверяются статусы, доступность на одну дату, фильтры и пагинация, 404, slug, GeneratedField,
+права и формы Admin, ограничение числа SQL-запросов и миграция старых данных.
+Протоколы проверок находятся в `docs/pr10/`. Резервная копия локальной базы и данные входа
+не включаются в Git (`.pr10/`, `db.sqlite3`).
+
+Справка: [Django GeneratedField](https://docs.djangoproject.com/en/5.2/ref/models/fields/#generatedfield),
+[Django Admin](https://docs.djangoproject.com/en/5.2/ref/contrib/admin/),
+[Debug Toolbar](https://django-debug-toolbar.readthedocs.io/en/latest/installation.html).
+
 ## Назначение
 Приложение предназначено для структурирования, учёта и отслеживания личных интересов, хобби и направлений саморазвития пользователя. Система помогает планировать время на увлечения, ставить цели по обучению или практике, а также контролировать регулярность занятий.
 
@@ -14,6 +70,7 @@
 - JavaScript — небольшое клиентское поведение (год в подвале);
 - JSON — исходные данные проекта и хранилище консольной версии;
 - SQLite и язык SQL — реляционная база данных; в ПР7 работа с ней шла напрямую через модуль `sqlite3`, с ПР9 — через Django ORM (модели и миграции);
+- django-debug-toolbar — панель со списком SQL-запросов страницы (для проверки ORM-запросов);
 - pytest — автоматизированные тесты;
 - flake8 — проверка качества кода.
 
@@ -122,7 +179,7 @@ Django-проект `interest_tracker` создан в корне существ
 ```text
 браузер: GET /interests/1/
 → interest_tracker/urls.py: path("interests/", include("interests.urls"))
-→ interests/urls.py: path("<int:interest_id>/", views.interest_detail, name="detail")
+→ interests/urls.py: path("<int:interest_id>/", views.interest_detail, name="detail_by_id")
 → interest_detail(request, interest_id=1): get_object_or_404(), Interest.can_subscribe() для каждого пользователя, подготовка контекста
 → render(): шаблон interests/interest_detail.html, который наследует templates/base.html
 → HttpResponse: HTML-страница и код статуса 200
@@ -171,7 +228,7 @@ View передаёт данные словарём. Например, `interest
 context = {"interests": Interest.objects.order_by("name")}
 return render(request, "interests/interest_list.html", context)
 ```
-В шаблоне имена ключей контекста становятся переменными: `{% for interest in interests %}`, `{{ interest.name }}`, `{{ interest.category.name }}`. Для пустой коллекции используется `{% empty %}` («Интересы не найдены.», «Подписки не найдены.»). Условия `{% if %}` выбирают вид страницы и значков: интерес активен или в архиве, подписка активна или отменена (`subscription.is_cancelled`), можно или нельзя подписаться (`item.allowed`), найден ли объект. Проверка `can_subscribe()` вызывается во view (шаблон не вычисляет правила), результат передаётся в контексте списком `users_info`.
+В шаблоне имена ключей контекста становятся переменными: `{% for interest in interests %}`, `{{ interest.name }}`, `{{ interest.category.name }}`. Для пустой коллекции используется `{% empty %}` («Интересы не найдены.», «Подписки не найдены.»). Условия `{% if %}` выбирают вид страницы и значков: интерес активен или в архиве, статус подписки (`subscription.status`, три состояния), можно или нельзя подписаться (`item.allowed`), найден ли объект. Проверка `can_subscribe()` вызывается во view (шаблон не вычисляет правила), результат передаётся в контексте списком `users_info`.
 
 Если объект не найден, view вызывает `get_object_or_404()`: Django возвращает ответ 404 (страница «Страница не найдена»), поэтому шаблон карточки получает только существующий объект. (В ПР6 view передавала `None`, шаблон показывал сообщение через `{% if interest %} ... {% else %} ... {% endif %}`, а код 404 задавался параметром `status`.)
 
@@ -189,7 +246,7 @@ return render(request, "interests/interest_list.html", context)
 |---|---|---|
 | `homepage:index` | `/` | `{% url 'homepage:index' %}` |
 | `interests:list` | `/interests/` | `{% url 'interests:list' %}` |
-| `interests:detail` | `/interests/<int:interest_id>/` | `{% url 'interests:detail' interest.id %}` |
+| `interests:detail` | `/interests/<slug:slug>/` | `{{ interest.get_absolute_url }}` |
 | `subscriptions:list` | `/subscriptions/` | `{% url 'subscriptions:list' %}` |
 | `subscriptions:detail` | `/subscriptions/<int:subscription_id>/` | `{% url 'subscriptions:detail' subscription.id %}` |
 
@@ -413,7 +470,7 @@ return render(request, "interests/interest_list.html", {"interests": rows})
 | `Category` | `interests/models.py` | `name` | — |
 | `Interest` | `interests/models.py` | `name`, `weekly_goal` (`FloatField`), `is_active` (`BooleanField`, по умолчанию `True`) | `category` → `Category` (`ForeignKey`, `PROTECT`, `related_name="interests"`) |
 | `User` | `users/models.py` | `name`, `email` (`EmailField`) | — |
-| `Subscription` | `subscriptions/models.py` | `start_date` (`DateField`), `is_cancelled` (`BooleanField`, по умолчанию `False`) | `user` → `User`, `interest` → `Interest` (`ForeignKey`, `PROTECT`, `related_name="subscriptions"`) |
+| `Subscription` | `subscriptions/models.py` | `start_date` (`DateField`), `status` (`CharField`, TextChoices) | `user` → `User`, `interest` → `Interest` (`ForeignKey`, `PROTECT`, `related_name="subscriptions"`) |
 | `Activity` | `subscriptions/models.py` | `activity_date` (`DateField`), `hours` (`FloatField`) | `subscription` → `Subscription` (`ForeignKey`, `CASCADE`, `related_name="activities"`) |
 
 - первичный ключ `id` Django добавляет сам (`BigAutoField`, настройка `DEFAULT_AUTO_FIELD`);
@@ -453,24 +510,24 @@ python manage.py makemigrations --check
 | 3 | объект через `get()` | `User.objects.get(pk=...)` и `except User.DoesNotExist` | `/interests/available/` |
 | 4 | фильтр по полю связанной модели | `Interest.objects.filter(category__id=...)` | `/interests/?category=` |
 | 5 | поиск по нескольким полям | `filter(Q(name__iregex=...) \| Q(category__name__iregex=...))` | `/interests/?q=` |
-| 6 | фильтр по нескольким условиям | `self.subscriptions.filter(user=user, is_cancelled=False).exists()` | `Interest.can_subscribe()` |
+| 6 | фильтр по нескольким условиям | `self.subscriptions.active().filter(user=user).exists()` | `Interest.can_subscribe()` |
 | 7 | исключение записей | `Interest.objects.filter(is_active=True).exclude(pk__in=subscribed_ids)` | `/interests/available/` |
-| 8 | номера занятых интересов | `Subscription.objects.filter(user=..., is_cancelled=False).values_list("interest_id", flat=True)` | `/interests/available/` |
-| 9 | цепочка фильтров | `Subscription.objects.filter(is_cancelled=False)`, затем `.filter(start_date=...)`, `.filter(interest__id=...)`, `.filter(user__id=...)` | `/subscriptions/` |
+| 8 | номера занятых интересов | `Subscription.objects.active().filter(user=...).values_list("interest_id", flat=True)` | `/interests/available/` |
+| 9 | цепочка фильтров | `Subscription.objects.active()`, затем `.filter(start_date=...)`, `.filter(interest__id=...)`, `.filter(user__id=...)` | `/subscriptions/` |
 | 10 | сортировка по полю связанной модели | `.order_by(sort_field, "id")`, поле — из словаря `sort_fields` | `/subscriptions/?sort=` |
 | 11 | вычисляемые поля, `values()` | `.annotate(user_name=F("user__name"), interest_name=F("interest__name")).values(...)` | `/subscriptions/` |
 | 12 | постраничный вывод | `Paginator(subscriptions_data, 3)`, `get_page()` | `/subscriptions/?page=` |
-| 13 | подсчёт записей | `Subscription.objects.filter(is_cancelled=False).count()` | `/subscriptions/` |
+| 13 | подсчёт записей | `Subscription.objects.active().count()` | `/subscriptions/` |
 | 14 | связанные объекты одним запросом | `Subscription.objects.select_related("user", "interest__category")` | `/subscriptions/<id>/` |
 | 15 | сводные показатели | `Activity.objects.aggregate(Count("id"), Coalesce(Sum("hours"), 0.0))` | `/subscriptions/statistics/` |
-| 16 | счёт с условием (`Q`) | `Interest.objects.annotate(Count("subscriptions", filter=Q(subscriptions__is_cancelled=False)))` | `/subscriptions/statistics/` |
+| 16 | счёт с условием (`Q`) | `Interest.objects.annotate(Count("subscriptions", filter=Q(subscriptions__status=Subscription.Status.ACTIVE)))` | `/subscriptions/statistics/` |
 | 17 | сумма по цепочке связей | `Interest.objects.annotate(Coalesce(Sum("subscriptions__activities__hours"), 0.0))` | `/subscriptions/statistics/` |
 | 18 | группировка | `Category.objects.annotate(Count("interests"))` | `/subscriptions/statistics/` |
 | 19 | фильтр по агрегату (`HAVING`) | `.filter(interests_count__gt=1)` | `/subscriptions/statistics/` |
 | 20 | сумма по обратной связи | `self.activities.aggregate(total=Sum("hours"))` | `Subscription.get_total_hours()` |
 
 Пояснения:
-- статистика строится от `Interest` и `Category`, а не от `Subscription`: интересы и категории без связанных записей остаются в результате со счётом 0 (аналог `LEFT JOIN` из ПР7); условие `Q(subscriptions__is_cancelled=False)` ограничивает только подсчёт;
+- статистика строится от `Interest` и `Category`, а не от `Subscription`: интересы и категории без связанных записей остаются в результате со счётом 0 (аналог `LEFT JOIN` из ПР7); условие `Q(subscriptions__status=Subscription.Status.ACTIVE)` ограничивает только подсчёт;
 - часы по интересам считаются по всем подпискам, включая отменённые, как в консольной статистике: общий итог 22,0 ч;
 - `values()` возвращает словари: шаблон списка подписок использует `subscription.user_name`; у объектов моделей (`select_related()`) обращение идёт через связь — в карточке интереса `interest.category_name` заменено на `interest.category.name`;
 - значения из адресной строки проверяются: номера — методом `isdecimal()`, дата — `strptime()` (при ошибке выводится «Укажите корректную дату.»), поле сортировки выбирается только из словаря `sort_fields` (неизвестное значение — сортировка по дате), некорректный `?page=` открывает первую страницу (`get_page()`);
@@ -490,6 +547,12 @@ interest.delete()
 category.delete()
 ```
 Удаление `Category`, пока на неё ссылается интерес, вызовет `ProtectedError`.
+
+### Просмотр SQL-запросов: Django Debug Toolbar
+В ПР10 настройки панели и актуальные результаты анализа SQL приведены в разделе
+«Практическая работа 10» в начале README. Для просмотра включите `DJANGO_DEBUG=1`.
+Без отладки панель отключена. Карточка подписки выполняет 3 запроса, список — 6,
+включая общий счётчик интересов в навигации.
 
 ## Структура проекта
 ```text
@@ -711,7 +774,7 @@ personal_interesting/
 | Имя | Файл | Назначение |
 |---|---|---|
 | `Interest.can_subscribe()` | `interests/models.py` | правило подписки через ORM: интерес активен и у пользователя нет его активной подписки; используется страницей интереса |
-| `Subscription.cancel()` | `subscriptions/models.py` | отмена подписки: `save(update_fields=["is_cancelled"])` |
+| `Subscription.cancel()` | `subscriptions/models.py` | отмена подписки: `save(update_fields=["status"])` |
 | `Subscription.get_total_hours()` | `subscriptions/models.py` | сумма часов занятий: `aggregate(Sum("hours"))`; используется страницей подписки |
 
 Веб-слой (ПР5–ПР9): каждая view-функция готовит контекст и вызывает `render()`, HTML формирует шаблон. Данные view получает через ORM.
@@ -730,6 +793,7 @@ personal_interesting/
 ## Требования
 - Python 3.10 или новее;
 - Django 5.2;
+- django-debug-toolbar;
 - pytest;
 - flake8.
 
@@ -846,7 +910,7 @@ pytest -v
 - функции ПР1: расчёт прогресса и рекомендацию;
 - сохранение подписок в JSON и восстановление связей с объектами при загрузке.
 
-Веб-страницы на этом этапе проверяются вручную в браузере (адреса из раздела выше); автоматические тесты веб-слоя планируются в следующих работах. После перехода на шаблоны (ПР6), базу данных (ПР7) и Django ORM (ПР9) все 17 тестов проходят без изменений: пакет `models/`, `storage.py` и `main.py` не менялись, тесты проверяют классы ПР3, а не модели Django. Модели, миграции и ORM-запросы ПР9 проверены командами `python manage.py check`, `makemigrations --check` и `showmigrations`, в Django shell и вручную в браузере; результаты страниц сверены с SQL-запросами ПР7 (`sql/queries.sql`) и с функциями `can_subscribe()` и `get_statistics()` ПР3: совпадают списки, доступные интересы, подписки, часы (22,0 ч) и статистика.
+Веб-слой проверяется 22 тестами `subscriptions/tests.py` через `python manage.py test`. Консольные классы проверяются отдельно: `pytest -v`, 17 тестов. Протоколы ПР10 находятся в `docs/pr10/`.
 
 ## Проверка качества кода
 ```text
@@ -864,7 +928,7 @@ git status
 Коммиты ПР5 начинаются с метки `PR5:`, коммиты ПР6 — с метки `PR6:`, коммиты ПР7 — с метки `PR7:`, коммиты ПР9 — с метки `PR9:` (например, `PR9: переход на Django ORM`). Файлы миграций хранятся в Git, локальная база `db.sqlite3` и резервная копия `data/interest_tracker_backup.sqlite` — нет.
 
 ## Текущее состояние и план развития
-### Текущий этап разработки (ПР9)
+### Этап ПР9 до настройки административной панели
 На ПР9 слой данных переведён на Django ORM:
 - описаны модели `Category`, `Interest`, `User`, `Subscription` и `Activity`, связи `ForeignKey` с `on_delete` и `related_name`; создано приложение `users`;
 - созданы и применены миграции (`makemigrations`, `migrate`), структура базы управляется миграциями;
@@ -872,6 +936,7 @@ git status
 - все страницы получают данные через ORM: фильтрация, `exclude()`, поиск, сортировка по разрешённым полям, `select_related()`, `aggregate()`, `annotate()` и `Count` с `Q`, `Paginator` с сохранением параметров запроса (`{% querystring %}`);
 - некорректные параметры (дата, номера, сортировка, страница) и отсутствующие объекты обрабатываются без ошибок;
 - из представлений удалены `sqlite3` и `load_data()`; SQL-слой ПР7 (`sql/`, `db/database.py`, `db/import_json.py`) оставлен как предыдущая реализация;
+- подключена панель Django Debug Toolbar: вкладка «SQL» показывает запросы каждой страницы;
 - консольная версия, JSON-хранилище, шаблоны, маршруты и все 17 тестов сохранены.
 
 Реализовано (ПР7):
@@ -902,13 +967,13 @@ git status
 - проверка правил подписки (`can_subscribe()`) на странице интереса;
 - навигация между страницами и оформление Bootstrap 5.3.
 
-Пока не реализовано: веб-формы и POST-запросы (создание, изменение и удаление записей через ORM выполняются только в Django shell), панель администратора для моделей, аутентификация.
+В ПР10 редактирование данных и аутентификация сотрудников доступны через Django Admin. Публичные формы подписки и пользовательская регистрация пока не реализованы.
 
 Планируется:
 - подключение PostgreSQL вместо SQLite (настройка `DATABASES`, перенос данных);
 - формы и POST-запросы: оформление и отмена подписки, отметка занятий, добавление интересов и категорий, использование отложенной логики ПР3;
 - аутентификация, регистрация и разграничение прав доступа пользователей;
 - REST API для интеграции с мобильными или внешними клиентами;
-- автоматические тесты веб-слоя и расширение покрытия бизнес-логики;
+- расширение покрытия бизнес-логики и будущих публичных форм;
 - контейнеризация приложения с использованием Docker и Docker Compose;
 - настройка базового CI/CD пайплайна для автоматической проверки и развёртывания.

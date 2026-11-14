@@ -6,6 +6,8 @@
 
 {% block content %}
 <h1>Статистика</h1>
+<h2 class="h4">Подписки по статусам</h2>
+<p>Активных: {{ status_totals.active }}, отменённых: {{ status_totals.cancelled }}, завершённых: {{ status_totals.completed }}.</p>
 <p>
   Отмечено занятий: {{ totals.activities_count }},
   всего часов: {{ totals.total_hours|floatformat:1 }}

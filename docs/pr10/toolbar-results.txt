@@ -1,0 +1,3 @@
+HTTP 200 /subscriptions/ Toolbar: True queries: 6
+HTTP 200 /subscriptions/?status=all&sort=user&page=2 Toolbar: True queries: 6
+HTTP 200 /subscriptions/1/ Toolbar: True queries: 3

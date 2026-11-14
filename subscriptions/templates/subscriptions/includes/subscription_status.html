@@ -1,7 +1,9 @@
-{% if subscription.is_cancelled %}
+{% if subscription.status == "CANCELLED" %}
 <span class="badge bg-secondary subscription-status subscription-status-cancelled">
   отменена
 </span>
+{% elif subscription.status == "COMPLETED" %}
+<span class="badge bg-info subscription-status">завершена</span>
 {% else %}
 <span class="badge bg-success subscription-status subscription-status-active">
   активна

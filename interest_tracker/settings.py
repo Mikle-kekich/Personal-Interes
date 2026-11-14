@@ -10,6 +10,8 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
+import sys
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -23,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-14uf8#%qb(!8r323wdze22us2e%s_pbc&(-##)xg3i1^sl&xt_'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.environ.get('DJANGO_DEBUG', '0') == '1'
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
@@ -38,9 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'homepage',
-    'interests',
-    'users',
-    'subscriptions',
+    'interests.apps.InterestsConfig',
+    'users.apps.UsersConfig',
+    'subscriptions.apps.SubscriptionsConfig',
 ]
 
 MIDDLEWARE = [
@@ -52,6 +54,13 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+ENABLE_DEBUG_TOOLBAR = (
+    DEBUG and 'test' not in sys.argv and 'pytest' not in Path(sys.argv[0]).name
+)
+if ENABLE_DEBUG_TOOLBAR:
+    INSTALLED_APPS.append('debug_toolbar')
+    MIDDLEWARE.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
 
 ROOT_URLCONF = 'interest_tracker.urls'
 
@@ -65,6 +74,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'interests.context_processors.interest_context',
             ],
         },
     },
@@ -124,3 +134,17 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Панель используется только в локальном режиме отладки.
+INTERNAL_IPS = ['127.0.0.1', '::1']
+
+
+def show_toolbar(request):
+    """Показывать панель только локально при включённом DEBUG."""
+    return ENABLE_DEBUG_TOOLBAR and request.META.get('REMOTE_ADDR') in INTERNAL_IPS
+
+
+DEBUG_TOOLBAR_CONFIG = {
+    'SHOW_TOOLBAR_CALLBACK': 'interest_tracker.settings.show_toolbar',
+}

@@ -5,3 +5,5 @@ __pycache__/
 .pytest_cache/
 db.sqlite3
 data/*_backup.sqlite
+.pr10/
+.mypy_cache/
