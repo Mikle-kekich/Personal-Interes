@@ -29,9 +29,11 @@ Django Admin и Django ORM реализованы для предметной о
 # .\.venv\Scripts\python.exe db/import_sqlite_to_orm.py
 .\.venv\Scripts\python.exe manage.py createsuperuser
 $env:DJANGO_DEBUG='1'
-.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8010
+.\.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
 ```
 
+Сайт открывается по адресу http://127.0.0.1:8000/, административная панель — http://127.0.0.1:8000/admin/.
+Используется прежний стандартный порт 8000, как в методичке ПР10.
 Debug Toolbar включается только при `DJANGO_DEBUG=1` с локального IP и отключается в тестах.
 При `DJANGO_DEBUG=0` используется стандартная страница 404, маршруты панели не подключаются.
 В SQL-вкладке списка подписок видны JOIN, COUNT для пагинации и общего числа активных записей,

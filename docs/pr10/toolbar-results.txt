@@ -1,3 +1,6 @@
 HTTP 200 /subscriptions/ Toolbar: True queries: 6
+SQL panel: 200 SQL JOIN: True LIMIT: True
 HTTP 200 /subscriptions/?status=all&sort=user&page=2 Toolbar: True queries: 6
+SQL panel: 200 SQL JOIN: True LIMIT: True
 HTTP 200 /subscriptions/1/ Toolbar: True queries: 3
+SQL panel: 200 SQL JOIN: True LIMIT: True
